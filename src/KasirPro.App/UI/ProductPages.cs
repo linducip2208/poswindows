@@ -218,6 +218,9 @@ public class ProductEditDialog : Form
     private readonly TextBox _minStock = Theme.TextBox(100);
     private readonly TextBox _barcodes = Theme.TextBox(340);
     private readonly TextBox _imagePath = Theme.TextBox(280);
+    private readonly TextBox _wholesalePrice = Theme.TextBox(140);
+    private readonly TextBox _wholesaleMinQty = Theme.TextBox(140);
+    private readonly ComboBox _taxMode = Theme.Combo(140);
 
     public ProductEditDialog(Product? product)
     {
@@ -226,7 +229,7 @@ public class ProductEditDialog : Form
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false; MinimizeBox = false;
         StartPosition = FormStartPosition.CenterParent;
-        ClientSize = new Size(560, 480);
+        ClientSize = new Size(560, 600);
         BackColor = Theme.Bg;
         Font = Theme.FontBase;
 
@@ -251,6 +254,10 @@ public class ProductEditDialog : Form
         if (product == null) Field("Stok Awal:", _stock);
         Field("Stok Minimum:", _minStock);
         Field("Barcode(s) koma:", _barcodes);
+        Field("Harga Grosir:", _wholesalePrice);
+        Field("Min Qty Grosir:", _wholesaleMinQty);
+        Field("Mode PPN:", _taxMode);
+        _taxMode.Items.AddRange(new object[] { "Ikut toko", "Tanpa PPN", "Include PPN", "Exclude PPN" });
         Field("Gambar:", _imagePath, 280);
 
         var browse = Theme.SecondaryButton("...", 40, 28);
@@ -289,6 +296,15 @@ public class ProductEditDialog : Form
             _unit.SelectedIndex = unitIdx >= 0 ? unitIdx : 0;
             _purchasePrice.Text = product.PurchasePrice.ToString("0.##");
             _sellingPrice.Text = product.SellingPrice.ToString("0.##");
+            _wholesalePrice.Text = product.WholesalePrice > 0 ? product.WholesalePrice.ToString("0.##") : "";
+            _wholesaleMinQty.Text = product.WholesaleMinQty > 0 ? product.WholesaleMinQty.ToString("0.##") : "";
+            _taxMode.SelectedIndex = product.TaxMode switch
+            {
+                KasirPro.Core.Domain.TaxMode.None => 1,
+                KasirPro.Core.Domain.TaxMode.Inclusive => 2,
+                KasirPro.Core.Domain.TaxMode.Exclusive => 3,
+                _ => 0
+            };
             _minStock.Text = product.MinStock.ToString("0.##");
             _imagePath.Text = product.ImagePath;
             var bcs = UiHelpers.Run(() =>
@@ -296,6 +312,10 @@ public class ProductEditDialog : Form
             _barcodes.Text = string.Join(", ", bcs);
             _stock.Visible = false;
             _name.Focus();
+        }
+        else
+        {
+            _taxMode.SelectedIndex = 0;
         }
     }
 
@@ -344,6 +364,15 @@ public class ProductEditDialog : Form
         product.UnitName = unit?.Name ?? "";
         product.PurchasePrice = Parse(_purchasePrice);
         product.SellingPrice = Parse(_sellingPrice);
+        product.WholesalePrice = Parse(_wholesalePrice);
+        product.WholesaleMinQty = Parse(_wholesaleMinQty);
+        product.TaxMode = _taxMode.SelectedIndex switch
+        {
+            1 => KasirPro.Core.Domain.TaxMode.None,
+            2 => KasirPro.Core.Domain.TaxMode.Inclusive,
+            3 => KasirPro.Core.Domain.TaxMode.Exclusive,
+            _ => KasirPro.Core.Domain.TaxMode.Default
+        };
         product.MinStock = Parse(_minStock);
         product.ImagePath = imagePath;
         if (_product == null) product.Stock = Parse(_stock);
