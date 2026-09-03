@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net6.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <RootNamespace>KasirPro.App</RootNamespace>
+    <AssemblyName>KasirPro</AssemblyName>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <ApplicationUseCompatibleTextRendering>false</ApplicationUseCompatibleTextRendering>
+    <Version>1.1.0</Version>
+    <Product>KasirPro POS Retail</Product>
+    <Company>KasirPro</Company>
+    <AssemblyTitle>KasirPro - POS Retail</AssemblyTitle>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\KasirPro.Core\KasirPro.Core.csproj" />
+    <ProjectReference Include="..\KasirPro.Infrastructure\KasirPro.Infrastructure.csproj" />
+    <ProjectReference Include="..\KasirPro.Licensing\KasirPro.Licensing.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>
+

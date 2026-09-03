@@ -1,0 +1,45 @@
+# ================= kasirpro =================
+# master signing key - NEVER COMMIT
+tools/**/Keys/
+Keys/
+*.private.key
+private.key
+*.pem
+
+# keygen local database
+tools/**/Data/
+keygen.db
+keygen.db-wal
+keygen.db-shm
+
+# generated license files
+license.dat
+*.license
+
+# production / runtime databases
+Data/
+*.db
+*.db-wal
+*.db-shm
+*.db.restore-*
+*.db-journal
+
+# backups, exports, logs
+Backup/
+Exports/
+Logs/
+*.log
+
+# secret configuration
+appsettings.*.Local.json
+appsettings.local.json
+secrets.json
+
+# build artifacts
+bin/
+obj/
+dist/
+publish/
+*.user
+.vs/
+.vscode/
