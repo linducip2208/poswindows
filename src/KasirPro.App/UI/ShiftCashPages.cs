@@ -61,22 +61,25 @@ public class OpenShiftDialog : Form
     }
 }
 
-/// <summary>Close shift: system cash vs actual cash + difference, then stores summary + auto backup.</summary>
+/// <summary>Close shift: blind closing option, denominations keypad, difference disclosure after submit.</summary>
 public class CloseShiftDialog : Form
 {
     private readonly CashSession _session;
     private readonly TextBox _actual = Theme.TextBox(200);
     private readonly Label _lblSystem;
     private readonly Label _lblDiff;
+    private readonly bool _blind;
+    private readonly Dictionary<int, TextBox> _denoms = new();
 
     public CloseShiftDialog()
     {
         _session = UiHelpers.Run(() => Program.Services.Cash.GetOpenSession(Program.Session!.UserId));
+        _blind = Program.Services.Settings.Get("blind_close", "0") == "1";
         Text = "Close Shift";
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false; MinimizeBox = false;
         StartPosition = FormStartPosition.CenterParent;
-        ClientSize = new Size(430, 330);
+        ClientSize = new Size(560, 560);
         BackColor = Theme.Bg;
         Font = Theme.FontBase;
 
@@ -87,45 +90,89 @@ public class CloseShiftDialog : Form
         info.Location = new Point(20, 46);
         info.Size = new Size(380, 40);
 
-        _lblSystem = Theme.Label("System Cash: Rp 0", 12, true);
+        _lblSystem = Theme.Label("System Cash: " + (_blind ? "***" : Money.Format(Expected())), 12, true);
         _lblSystem.Location = new Point(20, 100);
 
         var l2 = Theme.Label("Uang fisik di kasir (Rp):", 9, true);
         l2.Location = new Point(20, 140);
-        _actual.Location = new Point(20, 164);
+        _actual.Location = new Point(220, 136);
         _actual.TextAlign = HorizontalAlignment.Right;
+        _actual.ReadOnly = _blind;
 
-        _lblDiff = Theme.Label("Selisih: Rp 0", 11, true);
-        _lblDiff.Location = new Point(20, 200);
-        _actual.TextChanged += (s, e) => UpdateDiff();
+        _lblDiff = Theme.Label(_blind ? "Selisih: tampil setelah submit" : "Selisih: Rp 0", 11, true);
+        _lblDiff.Location = new Point(20, 176);
+        if (!_blind) _actual.TextChanged += (s, e) => UpdateDiff();
 
         var detail = Theme.Label(
             $"Penjualan tunai: {Money.Format(_session.CashSales)}\n" +
             $"Pelunasan piutang (cash): {Money.Format(_session.DebtPayments)}\n" +
             $"Cash In: {Money.Format(_session.CashIn)}\n" +
             $"Cash Out: {Money.Format(_session.CashOut)}", 9, false, Theme.Muted);
-        detail.Location = new Point(20, 236);
-        detail.Size = new Size(380, 68);
+        detail.Location = new Point(20, 210);
+        detail.Size = new Size(380, 64);
+
+        // ---- denominations ----
+        var dl = Theme.Label("Hitung fisik per pecahan:", 9, true);
+        dl.Location = new Point(20, 284);
+        Controls.Add(dl);
+        int[] denomValues = { 100000, 50000, 20000, 10000, 5000, 2000, 1000, 500 };
+        int x = 20, y = 310, row = 0;
+        foreach (var d in denomValues)
+        {
+            var lbl = Theme.Label($"{d:N0} x", 8);
+            lbl.Location = new Point(x, y + 3);
+            lbl.Size = new Size(52, 16);
+            var box = Theme.TextBox(56);
+            box.Location = new Point(x + 52, y);
+            box.TextAlign = HorizontalAlignment.Right;
+            box.Text = "0";
+            box.Tag = d;
+            box.TextChanged += DenomChanged;
+            _denoms[d] = box;
+            Controls.Add(lbl);
+            Controls.Add(box);
+            if (++row % 4 == 0) { x = 20; y += 34; } else x += 130;
+        }
 
         var ok = Theme.DangerButton("TUTUP SHIFT", 150, 40);
-        ok.Location = new Point(260, 278);
+        ok.Location = new Point(390, 500);
         ok.Click += OnClose;
         var cancel = Theme.SecondaryButton("Batal", 90, 40);
-        cancel.Location = new Point(160, 278);
+        cancel.Location = new Point(290, 500);
         cancel.Click += (s, e) => Close();
-
-        var expected = Money.Round(_session.OpeningCash + _session.CashSales + _session.DebtPayments
-            + _session.CashIn - _session.CashOut);
-        _lblSystem.Text = $"System Cash: {Money.Format(expected)}";
 
         Controls.AddRange(new Control[] { title, info, _lblSystem, l2, _actual, _lblDiff, detail, ok, cancel });
         if (_session.Id == 0) Close();
     }
 
+    private decimal Expected() => Money.Round(_session.OpeningCash + _session.CashSales + _session.DebtPayments
+        + _session.CashIn - _session.CashOut);
+
+    private void DenomChanged(object? sender, EventArgs e)
+    {
+        if (sender is not TextBox box) return;
+        if (!int.TryParse(box.Tag?.ToString(), out var denom)) return;
+        long.TryParse(box.Text, out var qty);
+        _actual.ReadOnly = false;
+        _actual.Text = DenomTotal().ToString("0");
+        if (_blind) _actual.ReadOnly = true;
+        if (!_blind) UpdateDiff();
+    }
+
+    private long DenomTotal()
+    {
+        long total = 0;
+        foreach (var (denom, box) in _denoms)
+        {
+            long.TryParse(box.Text, out var qty);
+            total += denom * qty;
+        }
+        return total;
+    }
+
     private void UpdateDiff()
     {
-        var expected = Money.Round(_session.OpeningCash + _session.CashSales + _session.DebtPayments
-            + _session.CashIn - _session.CashOut);
+        var expected = Expected();
         if (decimal.TryParse(_actual.Text.Replace(".", "").Replace(",", ""), out var actual))
         {
             var diff = Money.Round(actual - expected);
@@ -136,6 +183,7 @@ public class CloseShiftDialog : Form
 
     private void OnClose(object? sender, EventArgs e)
     {
+        if (_blind) _actual.Text = DenomTotal().ToString("0");
         if (!decimal.TryParse(_actual.Text.Replace(".", "").Replace(",", ""), out var actual))
         {
             UiHelpers.Warn("Masukkan jumlah uang fisik di kasir.");
@@ -151,6 +199,13 @@ public class CloseShiftDialog : Form
         {
             UiHelpers.Run(() => Program.Services.Backup.CreateBackup("close-shift", Program.Session.UserId, Program.Session.Username));
         }
+
+        // generate immutable Z report
+        UiHelpers.Run<object?>(() =>
+        {
+            Program.Services.XZReports.Generate(_session.Id, "Z", Program.Session.UserId, Program.Session.Username, actual);
+            return null;
+        });
 
         UiHelpers.Info(
             "Shift ditutup.\n" +

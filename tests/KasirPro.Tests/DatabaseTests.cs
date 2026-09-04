@@ -24,11 +24,11 @@ public class DatabaseTests : IDisposable
         var migrator = new Migrator(_db);
         Assert.Equal(0, migrator.CurrentVersion);
         migrator.Migrate();
-        Assert.Equal(3, migrator.CurrentVersion);
+        Assert.Equal(5, migrator.CurrentVersion);
 
         // second run: no-op
         migrator.Migrate();
-        Assert.Equal(3, migrator.CurrentVersion);
+        Assert.Equal(5, migrator.CurrentVersion);
 
         var tables = migrator.TableNames();
         string[] expected =
@@ -40,7 +40,11 @@ public class DatabaseTests : IDisposable
             "stock_opname_items", "cash_sessions", "cash_movements", "audit_logs",
             "database_version", "sale_debts", "debt_payments",
             "holds", "xz_reports", "purchase_payments", "warehouses",
-            "warehouse_stock", "stock_transfers", "stock_transfer_items", "unit_conversions"
+            "warehouse_stock", "stock_transfers", "stock_transfer_items", "unit_conversions",
+            "permissions", "role_permissions", "approval_log", "price_levels",
+            "store_credit_ledger", "loyalty_ledger", "product_variants",
+            "inventory_batches", "product_serials", "promotions", "promotion_usage",
+            "purchase_receipts", "purchase_receipt_items"
         };
         foreach (var t in expected)
             Assert.Contains(t, tables);
@@ -162,6 +166,7 @@ public class BackupTests : IDisposable
         try { Directory.Delete(_dir, true); } catch { }
     }
 }
+
 
 
 

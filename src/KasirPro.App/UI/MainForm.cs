@@ -178,20 +178,31 @@ public class MainForm : Form
         reports.DropDownItems.Add(Item("Z-Report History", () => OpenPage<XZHistoryPage>("xz_history")));
 
         var tools = new ToolStripMenuItem(Strings.T("menu_tools"));
-        tools.DropDownItems.Add(Item(Strings.T("menu_store_settings"), () => RunDialog(new StoreSettingsDialog())));
-        tools.DropDownItems.Add(Item(Strings.T("menu_user_management"), () => new UserManagementDialog().ShowDialog()));
+        if (Program.Session!.Has("SETTINGS.MANAGE"))
+            tools.DropDownItems.Add(Item(Strings.T("menu_store_settings"), () => RunDialog(new StoreSettingsDialog())));
+        if (Program.Session.Has("USER.MANAGE"))
+            tools.DropDownItems.Add(Item(Strings.T("menu_user_management"), () => new UserManagementDialog().ShowDialog()));
         tools.DropDownItems.Add(Item(Strings.T("menu_printer_setup"), () => new PrinterSetupDialog().ShowDialog()));
-        tools.DropDownItems.Add(Item(Strings.T("menu_receipt_setup"), () => new ReceiptSetupDialog().ShowDialog()));
+        tools.DropDownItems.Add(Item("Hardware Test Center", () => new HardwareTestCenterDialog().ShowDialog()));
+        tools.DropDownItems.Add(Item("Barcode & Labels", () => new BarcodeManagerDialog().ShowDialog()));
         tools.DropDownItems.Add(new ToolStripSeparator());
-        tools.DropDownItems.Add(Item(Strings.T("menu_backup"), () => RunBackup()));
-        tools.DropDownItems.Add(Item(Strings.T("menu_restore"), () => new RestoreDialog(this).ShowDialog()));
+        if (Program.Session.Has("BACKUP.CREATE"))
+            tools.DropDownItems.Add(Item(Strings.T("menu_backup"), () => RunBackup()));
+        if (Program.Session.Has("BACKUP.RESTORE"))
+            tools.DropDownItems.Add(Item(Strings.T("menu_restore"), () => new RestoreDialog(this).ShowDialog()));
         tools.DropDownItems.Add(Item(Strings.T("menu_maintenance"), () => new MaintenanceDialog(this).ShowDialog()));
         tools.DropDownItems.Add(new ToolStripSeparator());
-        tools.DropDownItems.Add(Item(Strings.T("menu_check_update"), () => RunUpdateCheck()));
-        tools.DropDownItems.Add(Item(Strings.T("menu_license_info"), () => new LicenseInfoDialog().ShowDialog()));
+        if (Program.Session.Has("SETTINGS.MANAGE"))
+            tools.DropDownItems.Add(Item(Strings.T("menu_check_update"), () => RunUpdateCheck()));
+        if (Program.Session.Has("LICENSE.VIEW"))
+            tools.DropDownItems.Add(Item(Strings.T("menu_license_info"), () => new LicenseInfoDialog().ShowDialog()));
         tools.DropDownItems.Add(Item(Strings.T("menu_about"), () => new AboutDialog().ShowDialog()));
 
-        data.DropDownItems.AddRange(new ToolStripItem[] { transaction, product, inventory, reports, tools });
+        // promotions (Data > Promotion)
+        var promotion = new ToolStripMenuItem("Promotion");
+        promotion.DropDownItems.Add(Item("Promotion List", () => new PromotionListDialog().ShowDialog()));
+
+        data.DropDownItems.AddRange(new ToolStripItem[] { transaction, product, promotion, inventory, reports, tools });
         menu.Items.Add(data);
         return menu;
     }

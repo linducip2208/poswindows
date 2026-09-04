@@ -23,6 +23,15 @@ public class AppServices
     public LoyaltyService Loyalty { get; }
     public WarehouseService Warehouses { get; }
     public SupplierPaymentService SupplierPayments { get; }
+    public PriceService Prices { get; }
+    public PromotionService Promotions { get; }
+    public CreditLedgerService Ledgers { get; }
+    public ExchangeService Exchanges { get; }
+    public BatchService Batches { get; }
+    public SerialService Serials { get; }
+    public MovementAnalyticsService MovementAnalytics { get; }
+    public ReorderService Reorder { get; }
+    public AuthorizationService Auth { get; }
     public UpdateService Updates { get; }
     public BackupService Backup { get; }
     public PrinterService Printer { get; }
@@ -34,6 +43,7 @@ public class AppServices
         Audit = new AuditService(db);
         Users = new UserService(db, Audit);
         Settings = new SettingsService(db, Audit);
+        Auth = new AuthorizationService(db, Audit);
         Inventory = new InventoryService(db, Audit);
         Products = new ProductService(db, Audit, Inventory);
         Cash = new CashService(db, Audit);
@@ -47,6 +57,14 @@ public class AppServices
         XZReports = new XZReportService(db, Audit);
         Warehouses = new WarehouseService(db, Audit);
         SupplierPayments = new SupplierPaymentService(db, Audit);
+        Prices = new PriceService(db);
+        Promotions = new PromotionService(db, Audit);
+        Ledgers = new CreditLedgerService(db, Audit);
+        Exchanges = new ExchangeService(db, Audit, Cash);
+        Batches = new BatchService(db, Audit);
+        Serials = new SerialService(db, Audit);
+        MovementAnalytics = new MovementAnalyticsService(db);
+        Reorder = new ReorderService(db);
         Updates = new UpdateService(Settings);
         Backup = new BackupService(db, Settings, Audit, backupDir);
         Printer = new PrinterService(Settings);

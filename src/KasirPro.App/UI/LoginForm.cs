@@ -8,6 +8,9 @@ public class LoginForm : Form
     private readonly ComboBox _user;
     private readonly TextBox _password;
     private readonly Button _login;
+    public long LoggedInUserId { get; private set; }
+    private int _failedAttempts;
+    private DateTime _lockedUntil = DateTime.MinValue;
 
     public LoginForm()
     {
@@ -54,6 +57,12 @@ public class LoginForm : Form
 
     private void OnLogin(object? sender, EventArgs e)
     {
+        // offline lockout: 5 failures -> 1 minute lock
+        if (DateTime.Now < _lockedUntil)
+        {
+            UiHelpers.Error($"Terlalu banyak percobaan gagal. Coba lagi dalam {Math.Ceiling((_lockedUntil - DateTime.Now).TotalSeconds)} detik.");
+            return;
+        }
         var username = _user.Text.Trim();
         var password = _password.Text;
         if (username.Length == 0 || password.Length == 0)
@@ -64,18 +73,22 @@ public class LoginForm : Form
         var user = UiHelpers.Run(() => Program.Services.Users.Login(username, password));
         if (user == null)
         {
-            UiHelpers.Error("Login gagal. Periksa pengguna dan PIN/password.");
+            _failedAttempts++;
+            if (_failedAttempts >= 5)
+            {
+                _lockedUntil = DateTime.Now.AddMinutes(1);
+                _failedAttempts = 0;
+                UiHelpers.Error("5x gagal login. Aplikasi terkunci 1 menit.");
+            }
+            else
+            {
+                UiHelpers.Error($"Login gagal. Periksa pengguna dan PIN/password. ({_failedAttempts}/5)");
+            }
             _password.Clear();
             _password.Focus();
             return;
         }
-        Program.Session = new UserSession
-        {
-            UserId = user.Id,
-            Username = user.Username,
-            FullName = string.IsNullOrWhiteSpace(user.FullName) ? user.Username : user.FullName,
-            Role = user.Role
-        };
+        LoggedInUserId = user.Id;
         DialogResult = DialogResult.OK;
         Close();
     }

@@ -10,8 +10,11 @@ public class CartLine
     public decimal Cost { get; set; }
     public decimal Stock { get; set; }
     public string Unit { get; set; } = "";
+    public string Category { get; set; } = "";
+    public string Brand { get; set; } = "";
     public decimal Qty { get; set; }
     public decimal Discount { get; set; }
+    public bool FreeItem { get; set; }
     public decimal Subtotal => Money.Round((Price * Qty) - Discount);
 }
 

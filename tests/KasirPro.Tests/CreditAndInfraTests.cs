@@ -266,21 +266,23 @@ public class UpdateServiceTests : IDisposable
         Directory.CreateDirectory(appDir);
         File.WriteAllText(Path.Combine(appDir, "KasirPro.dll"), "fake payload");
 
-        // build package v9.9.9
-        var packageDir = UpdateService.BuildPackage(appDir, Path.Combine(_dir, "pkg"), "9.9.9", "test update");
+        // build SIGNED package with version FAR ABOVE the installed one (assembly is 15.x)
+        var packageDir = UpdateService.BuildPackage(appDir, Path.Combine(_dir, "pkg"), "99.0.0", "test update");
         Assert.True(File.Exists(Path.Combine(packageDir, "manifest.json")));
+        Assert.True(File.Exists(Path.Combine(packageDir, "manifest.sig")));
         Assert.True(File.Exists(Path.Combine(packageDir, "KasirPro.dll")));
 
-        // settings point to package, installed = current assembly version (older than 9.9.9)
+        // settings point to package; use dev update public key created by BuildPackage
         var db = new Db(Path.Combine(_dir, "pos.db"));
         new Migrator(db).Migrate();
         var audit = new AuditService(db);
         var settings = new SettingsService(db, audit);
         settings.Set("update_source", packageDir);
-        var svc = new UpdateService(settings);
+        var pubPem = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Keys", "update-public.pem"));
+        var svc = new UpdateService(settings, pubPem);
 
         var info = svc.Check();
-        Assert.Equal("9.9.9", info.Version);
+        Assert.Equal("99.0.0", info.Version);
         Assert.True(info.NewerThanInstalled,
             $"available={info.Version} vs installed={svc.InstalledVersion}");
         Assert.Single(info.Files);
@@ -296,12 +298,13 @@ public class UpdateServiceTests : IDisposable
         Directory.CreateDirectory(Path.Combine(appDir, "Data"));
         File.WriteAllText(Path.Combine(appDir, "Data", "pos.db"), "never copy");
 
-        var packageDir = UpdateService.BuildPackage(appDir, Path.Combine(_dir, "pkg2"), "2.0.0", "");
+        var packageDir = UpdateService.BuildPackage(appDir, Path.Combine(_dir, "pkg2"), "99.0.1", "");
         var db = new Db(Path.Combine(_dir, "pos.db"));
         new Migrator(db).Migrate();
         var settings = new SettingsService(db, new AuditService(db));
         settings.Set("update_source", packageDir);
-        var svc = new UpdateService(settings);
+        var pubPem = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Keys", "update-public.pem"));
+        var svc = new UpdateService(settings, pubPem);
 
         var info = svc.Check();
         Assert.DoesNotContain(info.Files, f => f.RelativePath == "license.dat");
@@ -313,7 +316,7 @@ public class UpdateServiceTests : IDisposable
         Assert.True(File.Exists(Path.Combine(staged, "KasirPro.dll")));
         Assert.False(File.Exists(Path.Combine(staged, "license.dat")));
         Assert.False(File.Exists(Path.Combine(staged, "Data", "pos.db")));
-        Assert.Equal("2.0.0", File.ReadAllText(Path.Combine(Path.GetDirectoryName(staged)!, "pending.version")));
+        Assert.Equal("99.0.1", File.ReadAllText(Path.Combine(Path.GetDirectoryName(staged)!, "pending.version")));
     }
 
     public void Dispose()
@@ -321,5 +324,6 @@ public class UpdateServiceTests : IDisposable
         try { Directory.Delete(_dir, true); } catch { }
     }
 }
+
 
 

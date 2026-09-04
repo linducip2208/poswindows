@@ -133,6 +133,8 @@ public class ProductService
             p.stock AS Stock, p.min_stock AS MinStock
             FROM products p
             JOIN product_barcodes b ON b.product_id = p.id
+            LEFT JOIN categories cat ON cat.id = p.category_id
+            LEFT JOIN units u ON u.id = p.unit_id
             WHERE b.barcode = @bc AND p.is_active=1", new { bc = barcode.Trim() }));
 
     public List<Product> GetQuickList(long categoryId = 0, string search = "")

@@ -1,8 +1,185 @@
-# KasirPro - POS Retail Windows Offline
+# KasirPro - Professional Offline Retail POS for Windows
 
 Aplikasi kasir (POS) desktop Windows **100% offline** untuk toko retail:
-C# WinForms + SQLite lokal, tanpa internet, tanpa server, tanpa cloud.
+C# WinForms + SQLite lokal, .NET 10, tanpa internet, tanpa server, tanpa cloud.
 Portable - seluruh data berada di folder aplikasi, cukup dipindahkan ke flashdisk.
+
+## Fitur Utama (v2.0.0)
+
+**Kasir (POS)**
+- Barcode scan instan (in-memory scan cache, USB HID / scanner 2.4GHz / Bluetooth)
+- Split payment: Cash / QRIS / Debit / Transfer / Piutang / Poin / Store Credit
+- Pajak PPN include/exclude, tarif configurable, override per produk
+- Hold/park transaksi + recall per kasir
+- Promosi: diskon %, fixed, Buy X Get Y, harga spesial, coupon/voucher, happy hour, day-of-week
+- Harga multi-level (Retail/Member/Wholesale1-3/Reseller/Distributor) + qty break
+- Harga grosir per produk, barcode timbangan (prefix EAN-13 + berat)
+- Payment success dialog, printer fallback, cash drawer kick (ESC/POS)
+- F2-F11 keyboard shortcuts, touch mode, auto-logout
+
+**Keamanan (RBAC)**
+- Role Owner/Admin/Supervisor/Cashier dengan 35+ permission granular
+- Permission dievaluasi di **service layer** (bukan hanya menyembunyikan menu)
+- Supervisor authorization dialog untuk void/adjust/drawer/restore (approval_log)
+- Login lockout (5x gagal = lock 1 menit), PBKDF2 + constant-time compare
+- Audit log lengkap, Z-report immutable
+
+**Inventory**
+- Stock ledger (setiap perubahan tercatat), multi gudang + transfer stok
+- Stock opname + blind mode, batch/lot + expiry (FEFO, near-expiry, write-off)
+- Serial/IMEI tracking, reorder point + purchase suggestion
+- Moving average cost (integer cents), fast/slow/dead stock report
+
+**Purchasing**
+- Simple mode (langsung terima) + workflow PO -> Receipt -> Invoice -> Pay
+- Hutang supplier (AP) + pembayaran (cash masuk laporan kas)
+- Purchase return parsial
+
+**Pelanggan**
+- Member/tier, price level, poin loyalitas (ledger EARN/REDEEM/ADJUST/REVERSAL)
+- Store credit (ledger IN/OUT), piutang + limit kredit + pelunasan
+
+**Laporan & Ekspor**
+- 12+ laporan live dari SQLite, Export **PDF** (zero-dependency) / CSV / Print A4
+- X/Z report + history, sales by hour/payment/category, inventory valuation
+
+**Offline Infrastruktur**
+- SQLite WAL + foreign_keys + busy retry + light maintenance + quick_check
+- Backup via SQLite Backup API (bukan copy file mentah), auto + retention
+- Update offline via USB/share: manifest + SHA-256 + **ECDSA signature**
+- Lisensi offline ECDSA P-256 + Master Keygen terpisah
+- Dwi-bahasa: Indonesia / English
+
+## Architecture
+
+```
+KasirPro.App        WinForms UI (net10.0-windows)
+KasirPro.Core       Domain: entities, Money (integer cents), calculators, promo engine
+KasirPro.Infrastructure  SQLite (Dapper), services, migrations, printing, backup, updater
+KasirPro.Licensing  Machine ID + ECDSA P-256 token verify (public key only)
+KasirPro.Keygen     MASTER KEYGEN (developer only): private key DPAPI + keygen.db
+KasirPro.Tests      157 xUnit tests
+```
+
+Layer: UI -> Services -> Domain -> Infrastructure -> SQLite. Uang = **integer cents**
+(never floating point). Semua operasi bisnis transactional. Permission divalidasi
+di service (Auth.Require), menu hanya menyembunyikan.
+
+## Build & Test
+
+Butuh .NET SDK 10:
+
+```
+dotnet restore
+dotnet build -c Release
+dotnet test tests/KasirPro.Tests -c Release
+```
+
+Atau: `powershell scripts\build-release.ps1`
+
+## Publish
+
+```
+# Portable (butuh .NET Desktop Runtime 10 di PC target)
+powershell scripts\publish-portable.ps1
+
+# Self-contained (tidak butuh runtime, ~112 MB)
+powershell scripts\publish-selfcontained.ps1
+```
+
+Output: `dist/KasirPro/KasirPro.exe` + `dist/DeveloperTools/KasirPro.Keygen/`
+(private key TIDAK pernah ikut package pelanggan).
+
+## Run
+
+```
+KasirPro.exe                          # GUI lengkap
+KasirPro.exe --print-machine-id       # Machine ID komputer ini
+KasirPro.exe --verify-license <tok>   # aktivasi via CLI
+KasirPro.exe --seed-demo              # data demo (dev)
+KasirPro.exe --reset-demo             # reset DB ke demo
+KasirPro.exe --diag-license           # fingerprint public key + status lisensi
+```
+
+## Database (SQLite)
+
+File: `<folder app>\Data\pos.db` (relatif, portable).
+`foreign_keys=ON`, `journal_mode=WAL`, `synchronous=NORMAL`, busy_timeout 10s,
+retry SQLITE_BUSY 3x, light maintenance (checkpoint+optimize+quick_check).
+Migrasi versioned v1-v5 (idempotent, transactional).
+
+## Backup / Restore
+
+- Manual: Tools > Backup Database
+- Otomatis: tutup shift + exit + (retensi configurable 3-100 file)
+- Menggunakan SQLite Backup API + integrity_check hasil backup
+- Restore: validasi file -> pre-restore backup -> swap -> verify (Admin only)
+
+## Printer
+
+- Role printer terpisah: Receipt (58/80mm), Label, A4, Report, Drawer connector
+- Thermal via Windows PrintDocument; Bluetooth/LAN printer yang terinstall di
+  Windows otomatis tersedia (Settings > Printers & scanners)
+- Cash drawer: ESC p 0 via Winspool RAW, permission DRAWER.OPEN + audit
+- Hardware Test Center: Tools > Hardware Test Center (scanner/printer/drawer/scale)
+
+## Barcode Scanner
+
+- Mode HID (default): scanner = keyboard, suffix Enter, fokus otomatis
+- Mode COM: pilih port di Hardware Test Center
+- Test: scan di tab Barcode Scanner -> tampil raw value, tipe, produk matched
+- Scan cache: barcode+SKU dimuat sekali ke memori (fallback query saat miss)
+
+## Barcode & Labels
+
+- Tools > Barcode & Labels: generate internal EAN-13 (check digit benar),
+  duplicate checker, validasi EAN, label designer (25x15 s/d 50x40mm),
+  preview + print massal, Code128 renderer
+
+## Licensing / Keygen
+
+Model ECDSA P-256. Private key di Keygen (DPAPI + passphrase), POS hanya
+public key. Token `KPR1.<payload>.<sig>`. Verifikasi setiap startup.
+
+```
+KasirPro.Keygen.exe --init <passphrase>
+KasirPro.Keygen.exe --generate "Toko" KP-XXXX-XXXX-XXXX lifetime <passphrase>
+KasirPro.Keygen.exe --fingerprint
+```
+
+## Update Offline
+
+1. Developer: `UpdateService.BuildPackage(...)` -> manifest.json + payload +
+   manifest.sig (ECDSA, auto pakai Keys/update-private.pem)
+2. Salin folder paket ke USB/share, set di Store Settings
+3. Tools > Check for Update (Offline): verifikasi signature + SHA-256 semua
+   file + path traversal protection -> stage -> applied on next launch
+4. Data/, Backup/, Logs/, license.dat TIDAK PERNAH ditimpa
+
+## Role & Permission
+
+| Role | Contoh hak | Tidak boleh |
+|------|-----------|-------------|
+| Owner | Semua | - |
+| Admin | Semua | - |
+| Supervisor | void/return/exchange, stock adjust, drawer, approval | USER.MANAGE, ROLE.MANAGE |
+| Cashier | POS, hold/recall, return, diskon | void, user mgmt, restore, settings, product delete |
+
+Permission bisa diatur via tabel role_permissions. Menu menyembunyikan yang
+tidak berhak; service menolak + audit bila dipanggil paksa.
+
+## Troubleshooting
+
+- **Printer not found**: pastikan terinstall di Windows, klik Refresh di dialog
+- **Bluetooth printer tidak mencetak**: pairing dulu ke Windows sampai muncul
+  di daftar printer; aplikasi tidak connect BLE langsung
+- **Scanner not detected**: mode HID butuh fokus di field barcode; mode COM
+  perlu port benar; test di Hardware Test Center
+- **Database locked**: retry otomatis 3x; jangan share pos.db lewat jaringan
+- **License invalid**: cocokkan fingerprint (`--diag-license` vs `--fingerprint`)
+- **Backup failed**: pastikan folder aplikasi writable
+- **COM port error**: port dipakai aplikasi lain, tutup lalu refresh
+- **Windows write permission**: jalankan dari folder writable (bukan Program Files)
 
 Fitur v1.1.0:
 - POS kasir cepat (barcode scan instan dengan in-memory scan cache)

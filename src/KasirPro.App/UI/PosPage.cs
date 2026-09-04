@@ -1,4 +1,5 @@
 using Dapper;
+using KasirPro.Infrastructure;
 using KasirPro.Core.Domain;
 
 namespace KasirPro.App.UI;
@@ -548,7 +549,37 @@ public class PosPage : Panel, IPage
             Program.Services.Settings.Get("tax_enabled", "0"),
             Program.Services.Settings.Get("tax_rate_percent", "11"),
             Program.Services.Settings.Get("tax_inclusive", "1"));
-        var totals = SaleCalculator.Calculate(_cart, invoiceDiscount, cfg);
+
+        // ---- promotion engine ----
+        var promoDiscount = 0m;
+        var promoFreeLines = new List<CartLine>();
+        var appliedPromoCodes = new List<KasirPro.Core.Domain.Promotion>();
+        try
+        {
+            var member = _customer.SelectedItem is Customer mc && mc.Id > 1;
+            var promos = Program.Services.Promotions.ApplicableNow(member);
+            var enriched = _cart.Select(l => new CartLine
+            {
+                ProductId = l.ProductId, Code = l.Code, Name = l.Name, Price = l.Price,
+                Cost = l.Cost, Stock = l.Stock, Unit = l.Unit, Qty = l.Qty,
+                Discount = l.Discount, Category = "", Brand = ""
+            }).ToList();
+            var results = KasirPro.Core.Domain.PromotionEngine.Evaluate(promos, enriched,
+                enriched.Sum(l => l.Subtotal), member, DateTime.Now);
+            foreach (var r in results)
+            {
+                promoDiscount += r.Discount;
+                promoFreeLines.AddRange(r.Lines);
+                var promo = promos.First(p => p.Id == r.PromoId);
+                appliedPromoCodes.Add(promo);
+            }
+        }
+        catch (Exception ex)
+        {
+            Infrastructure.AppLogger.Instance.Error("promo evaluation gagal (diabaikan)", ex);
+        }
+
+        var totals = SaleCalculator.Calculate(_cart, invoiceDiscount + promoDiscount, cfg);
 
         var allowCredit = Program.Services.Settings.AllowCredit;
         var loyaltyEnabled = Program.Services.Loyalty.Enabled;
@@ -614,23 +645,52 @@ public class PosPage : Panel, IPage
 
         Program.Session.DataChangedSinceBackup = true;
 
+        var paidTotal = payment.ResultPayments.Sum(p => p.Amount) + payment.PointsRedeemed;
         var change = ChangeCalculator.Change(totals.GrandTotal, payment.ResultPayments.Select(p => (p.Method, p.Amount)));
         var creditMsg = saved.Outstanding > 0
-            ? $"\nPiutang: {Money.Format(saved.Outstanding)} a.n. {saved.CustomerName}\n"
+            ? $"Piutang: {Money.Format(saved.Outstanding)} a.n. {saved.CustomerName}\n"
             : "";
         var pointsMsg = payment.PointsRedeemed > 0
-            ? $"Poin dipakai: {payment.PointsRedeemable:N0} ({Money.Format(payment.PointsRedeemed)})\n" +
+            ? $"Poin dipakai: {Money.Format(payment.PointsRedeemed):N0}\n" +
               $"Poin didapat: {Program.Services.Loyalty.EarnFor(totals.GrandTotal):N0}\n"
             : "";
-        var printReceipt = saved.Total > 0 && UiHelpers.Confirm(
-            $"Transaksi {saved.InvoiceNo} berhasil.\n" +
-            (change > 0 ? $"Kembalian: {Money.Format(change)}\n" : "") +
-            creditMsg + pointsMsg +
-            "\nCetak struk?");
+        var promoMsg = appliedPromoCodes.Count > 0
+            ? "Promo: " + string.Join(", ", appliedPromoCodes.Select(p => p.Code)) + "\n"
+            : "";
 
-        if (printReceipt)
+        // record promotion usage (coupon limits enforced)
+        if (appliedPromoCodes.Count > 0 && promoDiscount > 0)
         {
-            UiHelpers.Run(() => Program.Services.Printer.PrintReceipt(saved));
+            UiHelpers.Run<object?>(() =>
+            {
+                Program.DbMain.Transaction(c =>
+                {
+                    var now = DbEx.Iso(DateTime.Now);
+                    foreach (var promo in appliedPromoCodes)
+                        Program.Services.Promotions.RecordUsage(c, promo, saved.Id,
+                            saved.CustomerId, promoDiscount, promo.CouponCode, now);
+                });
+                return null;
+            });
+        }
+
+        // PAYMENT SUCCESS dialog: print / new sale
+        var success = new PaymentSuccessDialog(saved.InvoiceNo, totals.GrandTotal, paidTotal, change,
+            creditMsg + pointsMsg + promoMsg);
+        success.ShowDialog(FindForm());
+        if (success.PrintReceipt)
+        {
+            try { Program.Services.Printer.PrintReceipt(saved); }
+            catch (Exception ex)
+            {
+                // printer fallback: sale already saved, do not fail checkout
+                Infrastructure.AppLogger.Instance.Error("struk gagal cetak", ex);
+                var retry = MessageBox.Show(
+                    "Transaksi berhasil tersimpan, tetapi struk gagal dicetak:\n" + ex.Message +
+                    "\n\nCoba cetak ulang?", "Printer", MessageBoxButtons.RetryCancel, MessageBoxIcon.Warning);
+                if (retry == DialogResult.Retry)
+                    UiHelpers.Run(() => Program.Services.Printer.PrintReceipt(saved));
+            }
         }
 
         _cart.Clear();
@@ -643,6 +703,7 @@ public class PosPage : Panel, IPage
         ((MainForm?)FindForm())?.UpdateStatusBar();
     }
 }
+
 
 
 

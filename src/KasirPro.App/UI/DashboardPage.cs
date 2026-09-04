@@ -164,6 +164,7 @@ public class DashboardPage : Panel, IPage
 /// <summary>Simple clean bar chart (GDI+), zero dependencies.</summary>
 public class TrendChart : Control
 {
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
     public List<TrendPoint> Data { get; set; } = new();
 
     public TrendChart() { DoubleBuffered = true; ResizeRedraw = true; }

@@ -477,6 +477,278 @@ public class Migrator
             ('purchases_default_credit', '0', '2026-01-01 00:00:00');"
     };
 
+    private static readonly string[] V4 = new[]
+    {
+        // ===== RBAC: roles (upgrade) / permissions / role_permissions / approval_log =====
+        @"INSERT OR IGNORE INTO roles (id, name, created_at, updated_at) VALUES
+            (3, 'Supervisor', '2026-01-01 00:00:00', '2026-01-01 00:00:00'),
+            (4, 'Owner', '2026-01-01 00:00:00', '2026-01-01 00:00:00');",
+        @"CREATE TABLE IF NOT EXISTS permissions (
+            code TEXT PRIMARY KEY,
+            description TEXT NOT NULL DEFAULT ''
+        );",
+        @"CREATE TABLE IF NOT EXISTS role_permissions (
+            role_id INTEGER NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+            permission TEXT NOT NULL REFERENCES permissions(code) ON DELETE CASCADE,
+            PRIMARY KEY (role_id, permission)
+        );",
+        @"CREATE TABLE IF NOT EXISTS approval_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            action TEXT NOT NULL,
+            reference_type TEXT NOT NULL DEFAULT '',
+            reference_id INTEGER NOT NULL DEFAULT 0,
+            requested_by INTEGER NOT NULL,
+            approved_by INTEGER NOT NULL,
+            reason TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL
+        );",
+        @"CREATE INDEX IF NOT EXISTS idx_approval_created ON approval_log(created_at);",
+        // ===== users.role_id → role name mapping tetap; kolom brand & lokasi produk =====
+        @"ALTER TABLE products ADD COLUMN brand TEXT NOT NULL DEFAULT '';",
+        @"ALTER TABLE products ADD COLUMN location TEXT NOT NULL DEFAULT '';",
+        @"ALTER TABLE products ADD COLUMN reorder_point REAL NOT NULL DEFAULT 0;",
+        @"ALTER TABLE products ADD COLUMN target_stock REAL NOT NULL DEFAULT 0;",
+        @"ALTER TABLE products ADD COLUMN track_batch INTEGER NOT NULL DEFAULT 0;",
+        @"ALTER TABLE products ADD COLUMN track_serial INTEGER NOT NULL DEFAULT 0;",
+        @"ALTER TABLE products ADD COLUMN has_variants INTEGER NOT NULL DEFAULT 0;",
+        @"ALTER TABLE products ADD COLUMN default_supplier_id INTEGER REFERENCES suppliers(id) ON DELETE SET NULL;",
+        @"ALTER TABLE products ADD COLUMN cost INTEGER NOT NULL DEFAULT 0;",
+        // ===== barcode upgrade =====
+        @"ALTER TABLE product_barcodes ADD COLUMN barcode_type TEXT NOT NULL DEFAULT 'EAN13';",
+        @"ALTER TABLE product_barcodes ADD COLUMN unit_id INTEGER REFERENCES units(id) ON DELETE SET NULL;",
+        @"ALTER TABLE product_barcodes ADD COLUMN conversion_factor REAL NOT NULL DEFAULT 1;",
+        @"ALTER TABLE product_barcodes ADD COLUMN is_primary INTEGER NOT NULL DEFAULT 0;",
+        // ===== price levels =====
+        @"CREATE TABLE IF NOT EXISTS price_levels (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            is_default INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );",
+        @"INSERT OR IGNORE INTO price_levels (id, name, is_default, created_at, updated_at) VALUES
+            (1, 'Retail', 1, '2026-01-01 00:00:00', '2026-01-01 00:00:00'),
+            (2, 'Member', 0, '2026-01-01 00:00:00', '2026-01-01 00:00:00'),
+            (3, 'Wholesale1', 0, '2026-01-01 00:00:00', '2026-01-01 00:00:00'),
+            (4, 'Wholesale2', 0, '2026-01-01 00:00:00', '2026-01-01 00:00:00'),
+            (5, 'Wholesale3', 0, '2026-01-01 00:00:00', '2026-01-01 00:00:00'),
+            (6, 'Reseller', 0, '2026-01-01 00:00:00', '2026-01-01 00:00:00'),
+            (7, 'Distributor', 0, '2026-01-01 00:00:00', '2026-01-01 00:00:00');",
+        @"ALTER TABLE customers ADD COLUMN tier TEXT NOT NULL DEFAULT 'Regular';",
+        @"ALTER TABLE customers ADD COLUMN price_level_id INTEGER REFERENCES price_levels(id) ON DELETE SET NULL;",
+        @"ALTER TABLE customers ADD COLUMN email TEXT NOT NULL DEFAULT '';",
+        @"ALTER TABLE customers ADD COLUMN birthday TEXT;",
+        @"ALTER TABLE customers ADD COLUMN lifetime_spending INTEGER NOT NULL DEFAULT 0;",
+        @"ALTER TABLE customers ADD COLUMN visit_count INTEGER NOT NULL DEFAULT 0;",
+        @"ALTER TABLE customers ADD COLUMN last_purchase TEXT;",
+        @"ALTER TABLE customers ADD COLUMN store_credit INTEGER NOT NULL DEFAULT 0;",
+        @"CREATE TABLE IF NOT EXISTS store_credit_ledger (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+            direction TEXT NOT NULL CHECK(direction IN ('IN','OUT')),
+            amount INTEGER NOT NULL DEFAULT 0,
+            reference_type TEXT NOT NULL DEFAULT '',
+            reference_id INTEGER NOT NULL DEFAULT 0,
+            notes TEXT NOT NULL DEFAULT '',
+            user_id INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL
+        );",
+        @"CREATE INDEX IF NOT EXISTS idx_store_credit_customer ON store_credit_ledger(customer_id);",
+        // ===== loyalty point ledger =====
+        @"CREATE TABLE IF NOT EXISTS loyalty_ledger (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+            type TEXT NOT NULL CHECK(type IN ('EARN','REDEEM','ADJUST','EXPIRE','REVERSAL')),
+            points INTEGER NOT NULL DEFAULT 0,
+            reference_type TEXT NOT NULL DEFAULT '',
+            reference_id INTEGER NOT NULL DEFAULT 0,
+            notes TEXT NOT NULL DEFAULT '',
+            user_id INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL
+        );",
+        @"CREATE INDEX IF NOT EXISTS idx_loyalty_customer ON loyalty_ledger(customer_id);",
+        // ===== product variants =====
+        @"CREATE TABLE IF NOT EXISTS product_variants (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+            sku TEXT NOT NULL UNIQUE,
+            name TEXT NOT NULL DEFAULT '',
+            purchase_price INTEGER NOT NULL DEFAULT 0,
+            selling_price INTEGER NOT NULL DEFAULT 0,
+            stock REAL NOT NULL DEFAULT 0,
+            min_stock REAL NOT NULL DEFAULT 0,
+            is_active INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );",
+        @"CREATE INDEX IF NOT EXISTS idx_variants_product ON product_variants(product_id);",
+        // ===== batch/lot/expiry =====
+        @"CREATE TABLE IF NOT EXISTS inventory_batches (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+            warehouse_id INTEGER NOT NULL DEFAULT 1 REFERENCES warehouses(id),
+            batch_no TEXT NOT NULL DEFAULT '',
+            expiry_date TEXT,
+            qty REAL NOT NULL DEFAULT 0,
+            purchase_cost INTEGER NOT NULL DEFAULT 0,
+            received_date TEXT NOT NULL DEFAULT '',
+            supplier_id INTEGER REFERENCES suppliers(id) ON DELETE SET NULL,
+            created_at TEXT NOT NULL
+        );",
+        @"CREATE INDEX IF NOT EXISTS idx_batches_product ON inventory_batches(product_id);",
+        @"CREATE INDEX IF NOT EXISTS idx_batches_expiry ON inventory_batches(expiry_date);",
+        // ===== serial/IMEI =====
+        @"CREATE TABLE IF NOT EXISTS product_serials (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+            warehouse_id INTEGER NOT NULL DEFAULT 1 REFERENCES warehouses(id),
+            serial_no TEXT NOT NULL,
+            imei_1 TEXT NOT NULL DEFAULT '',
+            imei_2 TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'AVAILABLE',
+            purchase_id INTEGER REFERENCES purchases(id) ON DELETE SET NULL,
+            sale_id INTEGER REFERENCES sales(id) ON DELETE SET NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            UNIQUE(product_id, serial_no)
+        );",
+        @"CREATE INDEX IF NOT EXISTS idx_serials_status ON product_serials(status);",
+        @"CREATE INDEX IF NOT EXISTS idx_serials_serial ON product_serials(serial_no);",
+        // ===== promotions =====
+        @"CREATE TABLE IF NOT EXISTS promotions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            code TEXT NOT NULL UNIQUE,
+            name TEXT NOT NULL,
+            type TEXT NOT NULL,
+            value REAL NOT NULL DEFAULT 0,
+            scope TEXT NOT NULL DEFAULT 'ALL',
+            scope_ref TEXT NOT NULL DEFAULT '',
+            min_purchase INTEGER NOT NULL DEFAULT 0,
+            min_qty REAL NOT NULL DEFAULT 0,
+            buy_qty REAL NOT NULL DEFAULT 0,
+            get_qty REAL NOT NULL DEFAULT 0,
+            member_only INTEGER NOT NULL DEFAULT 0,
+            priority INTEGER NOT NULL DEFAULT 0,
+            stackable INTEGER NOT NULL DEFAULT 0,
+            start_date TEXT NOT NULL,
+            end_date TEXT NOT NULL,
+            start_time TEXT NOT NULL DEFAULT '',
+            end_time TEXT NOT NULL DEFAULT '',
+            days TEXT NOT NULL DEFAULT '1,2,3,4,5,6,0',
+            is_active INTEGER NOT NULL DEFAULT 1,
+            coupon_code TEXT,
+            coupon_max_uses INTEGER NOT NULL DEFAULT 0,
+            coupon_uses INTEGER NOT NULL DEFAULT 0,
+            coupon_per_customer INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );",
+        @"CREATE INDEX IF NOT EXISTS idx_promos_active ON promotions(is_active, start_date, end_date);",
+        @"CREATE TABLE IF NOT EXISTS promotion_usage (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            promo_id INTEGER NOT NULL REFERENCES promotions(id) ON DELETE CASCADE,
+            sale_id INTEGER REFERENCES sales(id) ON DELETE SET NULL,
+            customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+            discount_amount INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL
+        );",
+        @"CREATE INDEX IF NOT EXISTS idx_promo_usage_promo ON promotion_usage(promo_id);",
+        // ===== purchase workflow =====
+        @"ALTER TABLE purchases ADD COLUMN workflow_status TEXT NOT NULL DEFAULT 'COMPLETED';",
+        @"CREATE TABLE IF NOT EXISTS purchase_receipts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            receipt_no TEXT NOT NULL UNIQUE,
+            purchase_id INTEGER NOT NULL REFERENCES purchases(id) ON DELETE CASCADE,
+            receipt_date TEXT NOT NULL,
+            user_id INTEGER NOT NULL,
+            notes TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL
+        );",
+        @"CREATE TABLE IF NOT EXISTS purchase_receipt_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            receipt_id INTEGER NOT NULL REFERENCES purchase_receipts(id) ON DELETE CASCADE,
+            product_id INTEGER NOT NULL REFERENCES products(id),
+            ordered_qty REAL NOT NULL DEFAULT 0,
+            received_qty REAL NOT NULL DEFAULT 0
+        );",
+        // ===== stock transfer upgrade =====
+        @"ALTER TABLE stock_transfers ADD COLUMN workflow_status TEXT NOT NULL DEFAULT 'COMPLETED';",
+        @"ALTER TABLE stock_transfers ADD COLUMN received_by INTEGER REFERENCES users(id);",
+        @"ALTER TABLE stock_transfers ADD COLUMN received_at TEXT;",
+        // ===== settings =====
+        @"INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES
+            ('supervisor_pin_required', '1', '2026-01-01 00:00:00'),
+            ('discount_max_percent_cashier', '5', '2026-01-01 00:00:00'),
+            ('blind_close', '0', '2026-01-01 00:00:00'),
+            ('near_expiry_days', '30', '2026-01-01 00:00:00'),
+            ('dead_stock_days', '90', '2026-01-01 00:00:00'),
+            ('receipt_print_mode', 'ask', '2026-01-01 00:00:00'),
+            ('label_printer', '', '2026-01-01 00:00:00'),
+            ('a4_printer', '', '2026-01-01 00:00:00'),
+            ('customer_display_enabled', '0', '2026-01-01 00:00:00');"
+    };
+
+    private static readonly string[] V5 = new[]
+    {
+        // ===== exchanges (tukar barang) =====
+        @"CREATE TABLE IF NOT EXISTS coupons (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            code TEXT NOT NULL UNIQUE,
+            promo_id INTEGER NOT NULL REFERENCES promotions(id) ON DELETE CASCADE,
+            is_active INTEGER NOT NULL DEFAULT 1,
+            used_count INTEGER NOT NULL DEFAULT 0,
+            max_uses INTEGER NOT NULL DEFAULT 0,
+            per_customer INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL
+        );",
+        @"CREATE TABLE IF NOT EXISTS coupon_usage (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            coupon_id INTEGER NOT NULL REFERENCES coupons(id) ON DELETE CASCADE,
+            sale_id INTEGER REFERENCES sales(id) ON DELETE SET NULL,
+            customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+            created_at TEXT NOT NULL
+        );",
+        @"CREATE TABLE IF NOT EXISTS exchanges (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            exchange_no TEXT NOT NULL UNIQUE,
+            exchange_date TEXT NOT NULL,
+            original_sale_id INTEGER NOT NULL REFERENCES sales(id),
+            new_sale_id INTEGER REFERENCES sales(id) ON DELETE SET NULL,
+            old_value INTEGER NOT NULL DEFAULT 0,
+            new_value INTEGER NOT NULL DEFAULT 0,
+            cash_paid INTEGER NOT NULL DEFAULT 0,
+            cash_refund INTEGER NOT NULL DEFAULT 0,
+            user_id INTEGER NOT NULL,
+            approved_by INTEGER,
+            reason TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );",
+        // ===== stock_movements: warehouse column =====
+        @"ALTER TABLE stock_movements ADD COLUMN warehouse_id INTEGER NOT NULL DEFAULT 1;",
+        // ===== sales status: exchange-aware (RETURNED/PARTIAL_RETURN dihandle via status) =====
+        // ===== serial pick at sale =====
+        @"CREATE TABLE IF NOT EXISTS sale_serials (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            sale_id INTEGER NOT NULL REFERENCES sales(id) ON DELETE CASCADE,
+            serial_id INTEGER NOT NULL REFERENCES product_serials(id),
+            UNIQUE(sale_id, serial_id)
+        );",
+        // ===== store credit movement on return already via store_credit_ledger =====
+        // ===== purchase: link receipts workflow statuses allowed set =====
+        @"INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES
+            ('scanner_mode', 'HID', '2026-01-01 00:00:00'),
+            ('scanner_com_port', '', '2026-01-01 00:00:00'),
+            ('scanner_baud', '9600', '2026-01-01 00:00:00'),
+            ('scanner_suffix', 'Enter', '2026-01-01 00:00:00'),
+            ('scanner_min_length', '4', '2026-01-01 00:00:00'),
+            ('receipt_printer', '', '2026-01-01 00:00:00'),
+            ('report_printer', '', '2026-01-01 00:00:00'),
+            ('drawer_connector', '0', '2026-01-01 00:00:00'),
+            ('drawer_pulse_on', '25', '2026-01-01 00:00:00'),
+            ('drawer_pulse_off', '250', '2026-01-01 00:00:00');"
+    };
+
     public int CurrentVersion
     {
         get
@@ -532,6 +804,33 @@ public class Migrator
             });
             applied++;
         }
+        if (from < 4)
+        {
+            _db.Transaction(conn =>
+            {
+                foreach (var sql in V4)
+                    conn.Execute(sql);
+                // seed permissions + role matrix
+                foreach (var sql in PermissionSeed.PermissionInserts)
+                    conn.Execute(sql);
+                foreach (var sql in PermissionSeed.RolePermissionInserts)
+                    conn.Execute(sql);
+                conn.Execute("INSERT INTO database_version (version, applied_at) VALUES (4, @applied_at)",
+                    new { applied_at = DbEx.Iso(DateTime.Now) });
+            });
+            applied++;
+        }
+        if (from < 5)
+        {
+            _db.Transaction(conn =>
+            {
+                foreach (var sql in V5)
+                    conn.Execute(sql);
+                conn.Execute("INSERT INTO database_version (version, applied_at) VALUES (5, @applied_at)",
+                    new { applied_at = DbEx.Iso(DateTime.Now) });
+            });
+            applied++;
+        }
         return applied;
     }
 
@@ -539,3 +838,4 @@ public class Migrator
     public List<string> TableNames() =>
         _db.With(c => c.Query<string>("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").ToList());
 }
+

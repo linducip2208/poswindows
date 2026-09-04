@@ -99,6 +99,18 @@ internal static class Program
         if (login.ShowDialog() != DialogResult.OK)
             return 0;
 
+        // service-layer authorization context (RBAC enforced in services, not just UI)
+        var ctx = Services.Auth.Load(login.LoggedInUserId);
+        Session = new UserSession
+        {
+            UserId = ctx.UserId,
+            Username = ctx.Username,
+            FullName = ctx.FullName,
+            Role = ctx.Role,
+            Permissions = ctx.Permissions
+        };
+        Program.Session.DataChangedSinceBackup = false;
+
         Application.Run(new MainForm());
         AppLogger.Instance.Info("=== KasirPro exited normally ===");
         return 0;
@@ -196,3 +208,13 @@ internal static class Program
         return Services.Users.CreateAdmin("admin", "admin123", "Administrator");
     }
 }
+
+/// <summary>Legacy alias retained for older call sites (maps onto UserSession).</summary>
+public class UserSession : KasirPro.Infrastructure.Services.UserContext
+{
+    /// <summary>Set when business data changed; drives auto-backup on exit.</summary>
+    public bool DataChangedSinceBackup { get; set; }
+    public bool IsAdmin => Role is "Admin" or "Owner";
+}
+
+
