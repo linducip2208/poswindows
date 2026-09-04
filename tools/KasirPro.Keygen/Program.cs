@@ -7,6 +7,40 @@ internal static class Program
     {
         ApplicationConfiguration.Initialize();
 
+        // CLI mode: keygen.exe --update-keys -> create the ECDSA key pair used to sign offline update packages
+        if (args.Length > 0 && args[0] == "--update-keys")
+        {
+            try
+            {
+                var privPath = Path.Combine(AppContext.BaseDirectory, "Keys", "update-private.pem");
+                var pubPath = Path.Combine(AppContext.BaseDirectory, "Keys", "update-public.pem");
+                if (File.Exists(privPath))
+                {
+                    Console.WriteLine("Update key pair sudah ada: " + privPath);
+                    Console.WriteLine("Public key (embed ke UpdateService.UpdatePublicKeyPem):");
+                    Console.WriteLine(File.ReadAllText(pubPath));
+                    return 0;
+                }
+                Directory.CreateDirectory(Path.GetDirectoryName(privPath)!);
+                using var key = System.Security.Cryptography.ECDsa.Create(
+                    System.Security.Cryptography.ECCurve.NamedCurves.nistP256);
+                File.WriteAllText(privPath, key.ExportPkcs8PrivateKeyPem());
+                File.WriteAllText(pubPath, key.ExportSubjectPublicKeyInfoPem());
+                Console.WriteLine("Update key pair dibuat:");
+                Console.WriteLine("  Private : " + privPath + "  (JANGAN disebar ke pelanggan)");
+                Console.WriteLine("  Public  : " + pubPath);
+                Console.WriteLine();
+                Console.WriteLine("Salin isi public key ke konstanta");
+                Console.WriteLine("KasirPro.Infrastructure.Services.UpdateService.UpdatePublicKeyPem lalu build ulang KasirPro.App.");
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("ERROR: " + ex.Message);
+                return 2;
+            }
+        }
+
         // CLI mode: keygen.exe --fingerprint -> show master public key fingerprint
         if (args.Length > 0 && args[0] == "--fingerprint")
         {

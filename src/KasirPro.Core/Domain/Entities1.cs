@@ -73,6 +73,8 @@ public class Product
     public string CategoryName { get; set; } = "";
     public long UnitId { get; set; }
     public string UnitName { get; set; } = "";
+    public string Brand { get; set; } = "";
+    public string Location { get; set; } = "";
     public decimal PurchasePrice { get; set; }
     public decimal SellingPrice { get; set; }
     /// <summary>Wholesale price; 0 = not offered.</summary>
@@ -81,8 +83,13 @@ public class Product
     public decimal WholesaleMinQty { get; set; }
     public decimal Stock { get; set; }
     public decimal MinStock { get; set; }
+    public decimal ReorderPoint { get; set; }
+    public decimal TargetStock { get; set; }
     /// <summary>"" = default; NONE / INCLUSIVE / EXCLUSIVE.</summary>
     public string TaxMode { get; set; } = "";
+    public bool TrackBatch { get; set; }
+    public bool TrackSerial { get; set; }
+    public long DefaultSupplierId { get; set; }
     public string ImagePath { get; set; } = "";
     public string Notes { get; set; } = "";
     public bool IsActive { get; set; } = true;

@@ -75,11 +75,11 @@ public class PrinterService
     public static string[] GetInstalledPrinters() =>
         PrinterSettings.InstalledPrinters.Cast<string>().ToArray();
 
-    public bool PrintReceipt(Sale sale, string? printerName = null, int copies = 1)
+    public bool PrintReceipt(Sale sale, string? printerName = null, int copies = 1, bool isReprint = false)
     {
         try
         {
-            var lines = BuildReceipt(sale);
+            var lines = BuildReceipt(sale, isReprint);
             var paper = _settings.ReceiptPaper == "58" ? 58 : 80;
             var name = string.IsNullOrWhiteSpace(printerName) ? _settings.PrinterName : printerName;
             if (string.IsNullOrWhiteSpace(name))
@@ -172,13 +172,14 @@ public class PrinterService
         return doc;
     }
 
-    private List<string> BuildReceipt(Sale sale)
+    private List<string> BuildReceipt(Sale sale, bool isReprint = false)
     {
         var width = _settings.ReceiptPaper == "58" ? 30 : 42;
         var lines = new List<string>
         {
             "[B]" + Center(_settings.StoreName, width)
         };
+        if (isReprint) lines.Add("[B]" + Center("** REPRINT **", width));
         if (!string.IsNullOrWhiteSpace(_settings.StoreAddress))
             foreach (var l in Wrap(_settings.StoreAddress, width)) lines.Add(Center(l, width));
         if (!string.IsNullOrWhiteSpace(_settings.StorePhone))

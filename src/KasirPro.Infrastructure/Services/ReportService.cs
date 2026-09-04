@@ -139,9 +139,76 @@ public class ReportService
             GROUP BY s.user_id ORDER BY Total DESC",
             new { f = DbEx.Iso(from.Date), t2 = DbEx.Iso(to.Date.AddDays(1).AddSeconds(-1)) }).ToList());
 
-    public DashboardSummary Dashboard()
+    // ===== extended reports (v2.1) =====
+
+    /// <summary>Receivable aging buckets from outstanding sale_debts.</summary>
+    public List<(string Bucket, int Count, decimal Total)> ReceivableAging()
     {
-        var today = DateTime.Today;
+        const string sql = @"
+            SELECT
+            CASE
+                WHEN julianday('now','localtime') - julianday(d.created_at) <= 30 THEN '1-30'
+                WHEN julianday('now','localtime') - julianday(d.created_at) <= 60 THEN '31-60'
+                WHEN julianday('now','localtime') - julianday(d.created_at) <= 90 THEN '61-90'
+                ELSE '>90'
+            END AS Bucket,
+            COUNT(*) AS Count,
+            CAST(ROUND(SUM(d.original_amount - d.paid_amount)/100.0,2) AS REAL) AS Total
+            FROM sale_debts d
+            WHERE d.status != 'SETTLED' AND d.original_amount > d.paid_amount
+            GROUP BY Bucket ORDER BY Bucket";
+        return _db.With(c => c.Query<(string, int, decimal)>(sql).ToList());
+    }
+
+    /// <summary>Inventory valuation by category (stock x purchase price).</summary>
+    public List<(string Category, int Products, decimal StockValue)> InventoryValuation() =>
+        _db.With(c => c.Query<(string, int, decimal)>(@"
+            SELECT COALESCE(cat.name,'(tanpa kategori)') AS Category,
+            COUNT(*) AS Products,
+            CAST(ROUND(SUM(p.stock * p.purchase_price)/100.0,2) AS REAL) AS StockValue
+            FROM products p LEFT JOIN categories cat ON cat.id=p.category_id
+            WHERE p.is_active=1
+            GROUP BY cat.id ORDER BY StockValue DESC").ToList());
+
+    /// <summary>Monthly sales summary (last 12 months).</summary>
+    public List<(string Month, int Count, decimal Total, decimal Profit)> MonthlySales() =>
+        _db.With(c => c.Query<(string, int, decimal, decimal)>(@"
+            SELECT strftime('%Y-%m', sale_date) AS Month, COUNT(*) AS Count,
+            CAST(ROUND(SUM(total)/100.0,2) AS REAL) AS Total,
+            CAST(ROUND(SUM(total-cost_total)/100.0,2) AS REAL) AS Profit
+            FROM sales WHERE status='COMPLETED'
+              AND sale_date >= datetime('now','localtime','-12 months')
+            GROUP BY Month ORDER BY Month").ToList());
+
+    /// <summary>Sales grouped by customer.</summary>
+    public List<(string Customer, int Count, decimal Total, string LastPurchase)> SalesByCustomer(DateTime from, DateTime to) =>
+        _db.With(c => c.Query<(string, int, decimal, string)>(@"
+            SELECT COALESCE(cu.name,'Umum') AS Customer, COUNT(*) AS Count,
+            CAST(ROUND(SUM(s.total)/100.0,2) AS REAL) AS Total,
+            COALESCE(MAX(date(s.sale_date)),'-') AS LastPurchase
+            FROM sales s LEFT JOIN customers cu ON cu.id=s.customer_id
+            WHERE s.status='COMPLETED' AND s.sale_date >= @f AND s.sale_date <= @t2
+            GROUP BY s.customer_id ORDER BY Total DESC LIMIT 200",
+            new { f = DbEx.Iso(from.Date), t2 = DbEx.Iso(to.Date.AddDays(1).AddSeconds(-1)) }).ToList());
+
+    /// <summary>Promotion usage summary.</summary>
+    public List<(string Code, string Name, int Uses, decimal TotalDiscount)> PromoUsage(DateTime from, DateTime to) =>
+        _db.With(c => c.Query<(string, string, int, decimal)>(@"
+            SELECT pr.code AS Code, pr.name AS Name, COUNT(pu.id) AS Uses,
+            CAST(ROUND(COALESCE(SUM(pu.discount_amount),0)/100.0,2) AS REAL) AS TotalDiscount
+            FROM promotions pr LEFT JOIN promotion_usage pu ON pu.promo_id=pr.id
+            WHERE pr.is_active=1
+            GROUP BY pr.id ORDER BY TotalDiscount DESC").ToList());
+
+    /// <summary>Loyalty summary: top point holders.</summary>
+    public List<(string Customer, decimal Points, decimal Lifetime)> LoyaltyTop(int limit = 20) =>
+        _db.With(c => c.Query<(string, decimal, decimal)>(@"
+            SELECT name AS Customer, points AS Points,
+            CAST(ROUND(lifetime_spending/100.0,2) AS REAL) AS Lifetime
+            FROM customers WHERE points > 0 ORDER BY points DESC LIMIT @l", new { l = limit }).ToList());
+
+    public DashboardSummary Dashboard()
+    {        var today = DateTime.Today;
         var fromToday = DbEx.Iso(today);
         var toToday = DbEx.Iso(today.AddDays(1).AddSeconds(-1));
 

@@ -40,6 +40,8 @@ public class SaleItem
     public decimal Cost { get; set; }
     public decimal Discount { get; set; }
     public decimal Subtotal { get; set; }
+    /// <summary>Serial/IMEI numbers sold with this line (serial-tracked products).</summary>
+    public List<string> SerialNos { get; set; } = new();
 }
 
 public class SalePayment

@@ -182,8 +182,11 @@ public class ProductService
             if (prod.Id == 0)
             {
                 id = c.ExecuteScalar<long>(@"INSERT INTO products
-                    (code, name, category_id, unit_id, purchase_price, selling_price, stock, min_stock, image_path, notes, is_active, created_at, updated_at)
-                    VALUES (@code, @name, @cat, @unit, @pp, @sp, @st, @ms, @img, @notes, 1, @t, @t2);
+                    (code, name, category_id, unit_id, purchase_price, selling_price, stock, min_stock,
+                     image_path, notes, is_active, created_at, updated_at,
+                     brand, location, reorder_point, target_stock, tax_mode, track_batch, track_serial, default_supplier_id)
+                    VALUES (@code, @name, @cat, @unit, @pp, @sp, @st, @ms, @img, @notes, 1, @t, @t2,
+                     @brand, @loc, @rp, @ts, @taxm, @tb, @tsr, @sup);
                     SELECT last_insert_rowid();",
                     new
                     {
@@ -194,7 +197,12 @@ public class ProductService
                         sp = DbEx.MoneyParam(prod.SellingPrice),
                         st = (double)prod.Stock,
                         ms = (double)prod.MinStock,
-                        img = prod.ImagePath, notes = prod.Notes, t = now, t2 = now
+                        img = prod.ImagePath, notes = prod.Notes, t = now, t2 = now,
+                        brand = prod.Brand ?? "", loc = prod.Location ?? "",
+                        rp = (double)prod.ReorderPoint, ts = (double)prod.TargetStock,
+                        taxm = prod.TaxMode ?? "", tb = prod.TrackBatch ? 1 : 0,
+                        tsr = prod.TrackSerial ? 1 : 0,
+                        sup = prod.DefaultSupplierId > 0 ? (long?)prod.DefaultSupplierId : null
                     });
 
                 // opening stock ledger entry if stock > 0
@@ -209,7 +217,9 @@ public class ProductService
             {
                 id = prod.Id;
                 c.Execute(@"UPDATE products SET code=@code, name=@name, category_id=@cat, unit_id=@unit,
-                    purchase_price=@pp, selling_price=@sp, min_stock=@ms, image_path=@img, notes=@notes, updated_at=@t
+                    purchase_price=@pp, selling_price=@sp, min_stock=@ms, image_path=@img, notes=@notes, updated_at=@t,
+                    brand=@brand, location=@loc, reorder_point=@rp, target_stock=@ts, tax_mode=@taxm,
+                    track_batch=@tb, track_serial=@tsr, default_supplier_id=@sup
                     WHERE id=@id",
                     new
                     {
@@ -219,15 +229,37 @@ public class ProductService
                         pp = DbEx.MoneyParam(prod.PurchasePrice),
                         sp = DbEx.MoneyParam(prod.SellingPrice),
                         ms = (double)prod.MinStock,
-                        img = prod.ImagePath, notes = prod.Notes, t = now, id
+                        img = prod.ImagePath, notes = prod.Notes, t = now, id,
+                        brand = prod.Brand ?? "", loc = prod.Location ?? "",
+                        rp = (double)prod.ReorderPoint, ts = (double)prod.TargetStock,
+                        taxm = prod.TaxMode ?? "", tb = prod.TrackBatch ? 1 : 0,
+                        tsr = prod.TrackSerial ? 1 : 0,
+                        sup = prod.DefaultSupplierId > 0 ? (long?)prod.DefaultSupplierId : null
                     });
             }
 
-            // rebuild barcodes
+            // rebuild barcodes (preserve metadata when the same barcode reappears)
+            var oldTypes = c.Query<(string Barcode, string Type, long? UnitId, double Factor, int Primary)>(
+                "SELECT barcode AS Barcode, barcode_type AS Type, unit_id AS UnitId, conversion_factor AS Factor, is_primary AS \"Primary\" FROM product_barcodes WHERE product_id=@id",
+                new { id }).ToDictionary(x => x.Barcode, x => x);
             c.Execute("DELETE FROM product_barcodes WHERE product_id=@id", new { id });
+            var first = true;
             foreach (var b in cleanBarcodes)
-                c.Execute("INSERT INTO product_barcodes (product_id, barcode, created_at) VALUES (@id, @b, @t)",
-                    new { id, b, t = now });
+            {
+                var meta = oldTypes.GetValueOrDefault(b);
+                c.Execute(@"INSERT INTO product_barcodes (product_id, barcode, barcode_type, unit_id, conversion_factor, is_primary, created_at)
+                    VALUES (@id, @b, @bt, @uid, @cf, @pr, @t)",
+                    new
+                    {
+                        id, b,
+                        bt = meta.Type ?? "EAN13",
+                        uid = meta.UnitId,
+                        cf = meta.Factor == 0 ? 1.0 : meta.Factor,
+                        pr = first && meta.Primary == 0 ? 1 : meta.Primary,
+                        t = now
+                    });
+                first = false;
+            }
 
             return id;
         });

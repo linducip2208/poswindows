@@ -129,8 +129,10 @@ public class MainForm : Form
         transaction.DropDownItems.Add(Item(Strings.T("menu_sales_history"), () => OpenPage<SalesHistoryPage>("sales_history")));
         transaction.DropDownItems.Add(Item(Strings.T("menu_sales_return"), () => new SalesReturnDialog(this).ShowDialog()));
         transaction.DropDownItems.Add(Item(Strings.T("menu_debts"), () => OpenPage<DebtsPage>("debts")));
+        transaction.DropDownItems.Add(Item("Exchange (Tukar Barang)", () => new ExchangeDialog().ShowDialog()));
         transaction.DropDownItems.Add(new ToolStripSeparator());
         transaction.DropDownItems.Add(Item(Strings.T("menu_purchase"), () => OpenPage<PurchaseEntryPage>("purchase_entry")));
+        transaction.DropDownItems.Add(Item("Purchase Orders", () => new PurchaseWorkflowDialog().ShowDialog()));
         transaction.DropDownItems.Add(Item(Strings.T("menu_purchase_history"), () => OpenPage<PurchaseHistoryPage>("purchase_history")));
         transaction.DropDownItems.Add(Item(Strings.T("menu_purchase_return"), () => PurchaseReturnEntry.Show()));
         transaction.DropDownItems.Add(new ToolStripSeparator());
@@ -148,6 +150,11 @@ public class MainForm : Form
         product.DropDownItems.Add(Item(Strings.T("menu_units"), () => OpenPage<UnitsPage>("units")));
         product.DropDownItems.Add(Item(Strings.T("menu_barcode"), () => new BarcodeDialog().ShowDialog()));
         product.DropDownItems.Add(Item(Strings.T("menu_price_update"), () => new PriceUpdateDialog().ShowDialog()));
+        product.DropDownItems.Add(Item("Price Levels", () => EditPriceLevels()));
+        product.DropDownItems.Add(Item("Import Produk (Preview)", () => ImportProducts()));
+        product.DropDownItems.Add(new ToolStripSeparator());
+        product.DropDownItems.Add(Item("Serial / IMEI", () => OpenPage<SerialManagerPage>("serials")));
+        product.DropDownItems.Add(Item("Batch / Expiry", () => OpenPage<BatchManagerPage>("batches")));
 
         var inventory = new ToolStripMenuItem(Strings.T("menu_inventory"));
         inventory.DropDownItems.Add(Item(Strings.T("menu_current_stock"), () => OpenPage<CurrentStockPage>("current_stock")));
@@ -159,20 +166,31 @@ public class MainForm : Form
         inventory.DropDownItems.Add(Item(Strings.T("menu_low_stock"), () => OpenPage<LowStockPage>("low_stock")));
         inventory.DropDownItems.Add(new ToolStripSeparator());
         inventory.DropDownItems.Add(Item("Gudang & Transfer Stok", () => OpenPage<WarehousePage>("warehouses")));
+        inventory.DropDownItems.Add(Item("Purchase Suggestion", () => OpenPage<ReorderPage>("reorder")));
 
         var reports = new ToolStripMenuItem(Strings.T("menu_reports"));
         reports.DropDownItems.Add(Item("Sales Report", () => new ReportViewerForm(ReportKind.Sales).ShowDialog()));
+        reports.DropDownItems.Add(Item("Monthly Sales", () => new ReportViewerForm(ReportKind.Monthly).ShowDialog()));
         reports.DropDownItems.Add(Item("Purchase Report", () => new ReportViewerForm(ReportKind.Purchase).ShowDialog()));
         reports.DropDownItems.Add(Item("Profit Report", () => new ReportViewerForm(ReportKind.Profit).ShowDialog()));
         reports.DropDownItems.Add(Item("Product Sales Report", () => new ReportViewerForm(ReportKind.ProductSales).ShowDialog()));
         reports.DropDownItems.Add(Item("Sales by Hour", () => new ReportViewerForm(ReportKind.Hourly).ShowDialog()));
         reports.DropDownItems.Add(Item("Sales by Payment Method", () => new ReportViewerForm(ReportKind.PaymentMethod).ShowDialog()));
         reports.DropDownItems.Add(Item("Sales by Category", () => new ReportViewerForm(ReportKind.Category).ShowDialog()));
+        reports.DropDownItems.Add(Item("Sales by Customer", () => new ReportViewerForm(ReportKind.CustomerSales).ShowDialog()));
         reports.DropDownItems.Add(Item("Stock Report", () => new ReportViewerForm(ReportKind.Stock).ShowDialog()));
         reports.DropDownItems.Add(Item("Stock Movement Report", () => new ReportViewerForm(ReportKind.StockMovement).ShowDialog()));
         reports.DropDownItems.Add(Item("Low Stock Report", () => new ReportViewerForm(ReportKind.LowStock).ShowDialog()));
+        reports.DropDownItems.Add(Item("Inventory Valuation", () => new ReportViewerForm(ReportKind.Valuation).ShowDialog()));
+        reports.DropDownItems.Add(Item("Near Expiry Report", () => new ReportViewerForm(ReportKind.NearExpiry).ShowDialog()));
+        reports.DropDownItems.Add(Item("Dead Stock Report", () => new ReportViewerForm(ReportKind.DeadStock).ShowDialog()));
         reports.DropDownItems.Add(Item("Cash Report", () => new ReportViewerForm(ReportKind.Cash).ShowDialog()));
         reports.DropDownItems.Add(Item("Cashier Report", () => new ReportViewerForm(ReportKind.Cashier).ShowDialog()));
+        reports.DropDownItems.Add(new ToolStripSeparator());
+        reports.DropDownItems.Add(Item("Receivable Aging", () => new ReportViewerForm(ReportKind.ReceivableAging).ShowDialog()));
+        reports.DropDownItems.Add(Item("Payable Aging", () => new ReportViewerForm(ReportKind.PayableAging).ShowDialog()));
+        reports.DropDownItems.Add(Item("Promotion Usage", () => new ReportViewerForm(ReportKind.PromoUsage).ShowDialog()));
+        reports.DropDownItems.Add(Item("Loyalty Report", () => new ReportViewerForm(ReportKind.Loyalty).ShowDialog()));
         reports.DropDownItems.Add(new ToolStripSeparator());
         reports.DropDownItems.Add(Item("X-Report (Shift Berjalan)", () => RunXZReport("X")));
         reports.DropDownItems.Add(Item("Z-Report History", () => OpenPage<XZHistoryPage>("xz_history")));
@@ -232,9 +250,47 @@ public class MainForm : Form
         });
     }
 
-    private void RunXZReport(string type)
+    private void EditPriceLevels()
     {
-        UiHelpers.Run(() =>
+        var code = InputDialog.Show("Kode/SKU produk:", "Price Levels");
+        if (string.IsNullOrWhiteSpace(code)) return;
+        var p = UiHelpers.Run(() => Program.Services.Products.GetByCode(code));
+        if (p == null) { UiHelpers.Warn("Produk tidak ditemukan."); return; }
+        new PriceLevelEditorDialog(p.Id, p.Name).ShowDialog(this);
+    }
+
+    private void ImportProducts()
+    {
+        if (!Program.Session!.Has("PRODUCT.CREATE") && !Program.Session.Has("PRODUCT.EDIT"))
+        {
+            UiHelpers.Warn("Butuh izin PRODUCT.CREATE/EDIT.");
+            return;
+        }
+        using var dlg = new OpenFileDialog
+        {
+            Filter = "CSV|*.csv;*.txt",
+            Title = "Import Produk (code;name;barcode;category;brand;unit;purchase_price;selling_price;stock;min_stock;supplier;location)"
+        };
+        if (dlg.ShowDialog(this) != DialogResult.OK) return;
+        try
+        {
+            var raw = CsvParser.Parse(File.ReadAllText(dlg.FileName), ';', '\t', ',');
+            var rows = ProductImportValidator.Validate(raw.Skip(1), out var warnings);
+            if (rows.Count == 0) { UiHelpers.Warn("Tidak ada baris data."); return; }
+            if (warnings.Count > 0)
+            {
+                UiHelpers.Warn("Peringatan:\n" + string.Join("\n", warnings.Take(10)), "Peringatan Import");
+            }
+            new ImportPreviewDialog(dlg.FileName, rows).ShowDialog(this);
+        }
+        catch (Exception ex)
+        {
+            UiHelpers.Error("Import gagal: " + ex.Message);
+        }
+    }
+
+    private void RunXZReport(string type)
+    {        UiHelpers.Run(() =>
         {
             var session = Program.Services.Cash.GetOpenSession(Program.Session!.UserId);
             var report = Program.Services.XZReports.Generate(session?.Id ?? 0, type,
@@ -332,18 +388,37 @@ public class MainForm : Form
     // ------------------------------------------------------------------
     protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
     {
+        _lastActivity = DateTime.Now;
         switch (keyData)
         {
             case Keys.F2:
                 OpenPos();
+                return true;
+            case Keys.F3:
+                ActivePos?.FocusSearch();
+                return true;
+            case Keys.F4:
+                ActivePos?.FocusCustomer();
                 return true;
             case Keys.F5:
                 foreach (Control c in _content.Controls)
                     if (c.Visible) (c as IPage)?.RefreshData();
                 UpdateStatusBar();
                 return true;
+            case Keys.F6:
+                ActivePos?.HoldCart();
+                return true;
+            case Keys.F7:
+                ActivePos?.RecallCart();
+                return true;
+            case Keys.F8:
+                ActivePos?.FocusDiscount();
+                return true;
             case Keys.F9:
                 ActivePos?.BeginPayment();
+                return true;
+            case Keys.F10:
+                ActivePos?.KickDrawer();
                 return true;
             case Keys.F11:
                 ToggleFullscreen();
@@ -380,11 +455,43 @@ public class MainForm : Form
         _lblTime.Text = $"{DateTime.Now:dd/MM/yyyy HH:mm}";
     }
 
-    /// <summary>Auto backup on close-shift and on exit when data changed.</summary>
+    /// <summary>Safe exit: warn on non-empty cart / open shift; auto backup when data changed.</summary>
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
         base.OnFormClosing(e);
         if (e.CloseReason != CloseReason.UserClosing) return;
+
+        // 1) cart not empty -> confirm discard
+        var pos = ActivePos;
+        if (pos != null && pos.HasItems)
+        {
+            var keep = MessageBox.Show(
+                "Keranjang masih berisi item.\n\nYes = parkir transaksi lalu keluar\nNo = buang dan keluar\nCancel = batal",
+                "Keranjang belum kosong", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Warning);
+            if (keep == DialogResult.Cancel) { e.Cancel = true; return; }
+            if (keep == DialogResult.Yes) pos.HoldCart();
+        }
+
+        // 2) open shift -> warn
+        var shift = UiHelpers.Run(() =>
+            Program.Session != null ? Program.Services.Cash.GetOpenSession(Program.Session.UserId) : null);
+        if (shift != null)
+        {
+            var ans = MessageBox.Show(
+                $"Shift masih terbuka sejak {shift.OpenedAt:HH:mm}.\nTutup shift dulu sebelum keluar?",
+                "Shift terbuka", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Warning);
+            if (ans == DialogResult.Cancel) { e.Cancel = true; return; }
+            if (ans == DialogResult.Yes)
+            {
+                using var dlg = new CloseShiftDialog();
+                dlg.ShowDialog(this);
+                var stillOpen = UiHelpers.Run(() =>
+                    Program.Session != null ? Program.Services.Cash.GetOpenSession(Program.Session.UserId) : null);
+                if (stillOpen != null) { e.Cancel = true; return; }
+            }
+        }
+
+        // 3) auto backup
         try
         {
             var settings = Program.Services.Settings;

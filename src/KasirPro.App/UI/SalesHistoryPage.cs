@@ -165,7 +165,13 @@ public class SalesHistoryPage : Panel, IPage
         if (sel == null) return;
         var sale = UiHelpers.Run(() => Program.Services.Sales.GetById(sel.Value.Id));
         if (sale == null) return;
-        UiHelpers.Run(() => Program.Services.Printer.PrintReceipt(sale));
+        UiHelpers.Run(() =>
+        {
+            Program.Services.Printer.PrintReceipt(sale, null, 1, isReprint: true);
+            Program.Services.Audit.Log(Program.Session!.UserId, Program.Session.Username,
+                "RECEIPT_REPRINT", "sale", sale.Id, $"Reprint {sale.InvoiceNo}");
+            return 0;
+        });
     }
 }
 

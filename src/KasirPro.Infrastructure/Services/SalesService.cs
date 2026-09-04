@@ -97,6 +97,10 @@ public class SalesService
                         di = DbEx.MoneyParam(item.Discount), su = DbEx.MoneyParam(item.Subtotal)
                     });
 
+                // serial-tracked: mark the picked serials as SOLD (fails when unavailable)
+                if (item.SerialNos.Count > 0)
+                    SerialService.MarkSold(c, item.ProductId, item.SerialNos, sale.Id, now);
+
                 // inventory ledger: OUT
                 InventoryService.ApplyMovement(c, item.ProductId, StockRef.Sale, sale.Id,
                     StockDirection.Out, item.Qty, $"Penjualan {sale.InvoiceNo}", sale.UserId, now);

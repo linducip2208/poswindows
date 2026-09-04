@@ -15,6 +15,8 @@ public class CartLine
     public decimal Qty { get; set; }
     public decimal Discount { get; set; }
     public bool FreeItem { get; set; }
+    /// <summary>Serial/IMEI numbers assigned to this line (serial-tracked products).</summary>
+    public List<string> SerialNos { get; set; } = new();
     public decimal Subtotal => Money.Round((Price * Qty) - Discount);
 }
 

@@ -526,6 +526,13 @@ public class Migrator
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
         );",
+        @"CREATE TABLE IF NOT EXISTS product_prices (
+            product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+            price_level_id INTEGER NOT NULL REFERENCES price_levels(id) ON DELETE CASCADE,
+            min_qty REAL NOT NULL DEFAULT 0,
+            price INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (product_id, price_level_id, min_qty)
+        );",
         @"INSERT OR IGNORE INTO price_levels (id, name, is_default, created_at, updated_at) VALUES
             (1, 'Retail', 1, '2026-01-01 00:00:00', '2026-01-01 00:00:00'),
             (2, 'Member', 0, '2026-01-01 00:00:00', '2026-01-01 00:00:00'),

@@ -9,7 +9,8 @@ namespace KasirPro.App.UI;
 public enum ReportKind
 {
     Sales, Purchase, Profit, ProductSales, Stock, StockMovement, LowStock, Cash, Cashier,
-    Hourly, PaymentMethod, Category
+    Hourly, PaymentMethod, Category, CustomerSales, Valuation, NearExpiry, DeadStock,
+    Monthly, ReceivableAging, PayableAging, PromoUsage, Loyalty
 }
 
 /// <summary>
@@ -85,7 +86,16 @@ public class ReportViewerForm : Form
         ReportKind.Cashier => "Cashier Report",
         ReportKind.Hourly => "Sales by Hour",
         ReportKind.PaymentMethod => "Sales by Payment Method",
-        _ => "Sales by Category"
+        ReportKind.Category => "Sales by Category",
+        ReportKind.CustomerSales => "Sales by Customer",
+        ReportKind.Valuation => "Inventory Valuation",
+        ReportKind.NearExpiry => "Near Expiry Report",
+        ReportKind.DeadStock => "Dead Stock Report",
+        ReportKind.Monthly => "Monthly Sales",
+        ReportKind.ReceivableAging => "Receivable Aging",
+        ReportKind.PayableAging => "Payable Aging",
+        ReportKind.PromoUsage => "Promotion Usage",
+        _ => "Loyalty Report"
     };
 
     private DataTable BuildTable()
@@ -153,6 +163,55 @@ public class ReportViewerForm : Form
                 Program.Services.Analytics.ByCategory(from, to).Select(r => new object[]
                 {
                     r.Category, r.Qty, r.Total
+                })),
+            ReportKind.CustomerSales => ToTable(new[] { ("Customer", 0), ("Transaksi", 2), ("Total", 1), ("Last Purchase", 0) },
+                Program.Services.Reports.SalesByCustomer(from, to).Select(r => new object[]
+                {
+                    r.Customer, r.Count, r.Total, r.LastPurchase
+                })),
+            ReportKind.Monthly => ToTable(new[] { ("Bulan", 0), ("Transaksi", 2), ("Total", 1), ("Profit", 1) },
+                Program.Services.Reports.MonthlySales().Select(r => new object[]
+                {
+                    r.Month, r.Count, r.Total, r.Profit
+                })),
+            ReportKind.Valuation => ToTable(new[] { ("Kategori", 0), ("Produk", 2), ("Nilai Stok", 1) },
+                Program.Services.Reports.InventoryValuation().Select(r => new object[]
+                {
+                    r.Category, r.Products, r.StockValue
+                })),
+            ReportKind.NearExpiry => ToTable(new[] { ("Batch", 0), ("Product", 0), ("Expiry", 0), ("Qty", 2), ("Cost", 1) },
+                Program.Services.Batches.NearExpiry(
+                    int.TryParse(Program.Services.Settings.Get("near_expiry_days", "30"), out var d) ? d : 30)
+                    .Select(r => new object[]
+                {
+                    r.Batch, r.Product, r.Expiry?.ToString("dd/MM/yyyy") ?? "-", r.Qty, r.Cost
+                })),
+            ReportKind.DeadStock => ToTable(new[] { ("SKU", 0), ("Product", 0), ("Stok", 2), ("Last Sale", 0) },
+                Program.Services.MovementAnalytics.SlowOrDead(
+                    int.TryParse(Program.Services.Settings.Get("dead_stock_days", "90"), out var dd) ? dd : 90,
+                    deadOnly: true).Select(r => new object[]
+                {
+                    r.Code, r.Name, r.Stock, r.LastSale
+                })),
+            ReportKind.ReceivableAging => ToTable(new[] { ("Bucket", 0), ("Jumlah", 2), ("Total", 1) },
+                Program.Services.Reports.ReceivableAging().Select(r => new object[]
+                {
+                    r.Bucket, r.Count, r.Total
+                })),
+            ReportKind.PayableAging => ToTable(new[] { ("Bucket", 0), ("Jumlah", 2), ("Total", 1) },
+                Program.Services.Purchases.ApAging().Select(r => new object[]
+                {
+                    r.Bucket, r.Count, r.Total
+                })),
+            ReportKind.PromoUsage => ToTable(new[] { ("Kode", 0), ("Nama", 0), ("Dipakai", 2), ("Total Diskon", 1) },
+                Program.Services.Reports.PromoUsage(from, to).Select(r => new object[]
+                {
+                    r.Code, r.Name, r.Uses, r.TotalDiscount
+                })),
+            ReportKind.Loyalty => ToTable(new[] { ("Pelanggan", 0), ("Poin", 2), ("Lifetime", 1) },
+                Program.Services.Reports.LoyaltyTop().Select(r => new object[]
+                {
+                    r.Customer, r.Points, r.Lifetime
                 })),
             _ => ToTable(new[] { ("Cashier", 0), ("Transactions", 2), ("Total", 1), ("Profit", 1) },
                 svc.Cashiers(from, to).Select(r => new object[]

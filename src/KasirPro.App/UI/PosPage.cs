@@ -355,22 +355,30 @@ public class PosPage : Panel, IPage
                       UiHelpers.Run(() => Program.Services.Products.Get(productId));
         if (product == null) return;
 
-        // wholesale price kicks in when qty meets the configured threshold
-        var effectivePrice = product.SellingPrice;
+        // ---- multi-price: promotion price not resolved here; level/tier via PriceService ----
+        var customerId = (_customer.SelectedItem as Customer)?.Id ?? 1;
+        var resolved = UiHelpers.Run(() => Program.Services.Prices.Resolve(
+            product.Id, customerId, qty, product.SellingPrice));
+        var effectivePrice = resolved > 0 ? resolved : product.SellingPrice;
         if (product.WholesalePrice > 0 && product.WholesaleMinQty > 0 && qty >= product.WholesaleMinQty)
-            effectivePrice = product.WholesalePrice;
+            effectivePrice = Math.Min(effectivePrice == product.SellingPrice ? product.WholesalePrice : effectivePrice, product.WholesalePrice);
 
         var line = _cart.FirstOrDefault(l => l.ProductId == productId);
         if (line != null)
         {
             line.Qty += qty;
-            // re-evaluate wholesale tier after quantity change
+            // re-evaluate price tier after quantity change
+            var reResolved = UiHelpers.Run(() => Program.Services.Prices.Resolve(
+                product.Id, customerId, line.Qty, product.SellingPrice));
+            line.Price = reResolved > 0 ? reResolved : line.Price;
             if (product.WholesalePrice > 0 && product.WholesaleMinQty > 0)
-                line.Price = line.Qty >= product.WholesaleMinQty ? product.WholesalePrice : product.SellingPrice;
+                line.Price = line.Qty >= product.WholesaleMinQty
+                    ? Math.Min(line.Price, product.WholesalePrice)
+                    : (line.Price == product.WholesalePrice ? product.SellingPrice : line.Price);
         }
         else
         {
-            _cart.Add(new CartLine
+            line = new CartLine
             {
                 ProductId = product.Id,
                 Code = product.Code,
@@ -380,10 +388,67 @@ public class PosPage : Panel, IPage
                 Stock = product.Stock,
                 Unit = product.UnitName,
                 Qty = qty
-            });
+            };
+            _cart.Add(line);
         }
+
+        // ---- serial-tracked products: pick serials ----
+        if (Program.Session != null && IsSerialTracked(product.Id) && line.SerialNos.Count < line.Qty)
+        {
+            using var picker = new SerialPickerDialog(product.Id, product.Name, line.Qty);
+            if (picker.ShowDialog(FindForm()) == DialogResult.OK)
+                line.SerialNos = picker.SelectedSerials;
+            else
+            {
+                _cart.Remove(line); // user cancelled serial selection
+                RefreshCart();
+                return;
+            }
+        }
+
         RefreshCart();
+        UpdateCustomerDisplay();
         _barcode.Focus();
+    }
+
+    private bool IsSerialTracked(long productId) =>
+        UiHelpers.Run(() => Program.DbMain.With(c => c.ExecuteScalar<long>(
+            "SELECT track_serial FROM products WHERE id=@id", new { id = productId }))) == 1;
+
+    public void FocusSearch()
+    {
+        _search.Focus();
+        _search.SelectAll();
+    }
+
+    public void FocusCustomer()
+    {
+        _customer.Focus();
+        _customer.DroppedDown = true;
+    }
+
+    public void FocusDiscount()
+    {
+        _discount.Focus();
+        _discount.SelectAll();
+    }
+
+    public bool HasItems => _cart.Any(l => l.Qty > 0);
+
+    public void KickDrawer()
+    {
+        if (!Program.Session!.Has("DRAWER.OPEN"))
+        {
+            UiHelpers.Warn("Anda tidak memiliki izin DRAWER.OPEN.");
+            return;
+        }
+        UiHelpers.Run(() =>
+        {
+            Program.Services.Printer.KickDrawerIfEnabled(Program.Services.Settings.PrinterName);
+            Program.Services.Audit.Log(Program.Session.UserId, Program.Session.Username,
+                "DRAWER_OPEN", "cash_drawer", 0, "F10 manual open dari POS");
+            return 0;
+        });
     }
 
     private void RemoveLine()
@@ -415,6 +480,26 @@ public class PosPage : Panel, IPage
         }
         _emptyHint.Visible = _cart.Count == 0;
         UpdateTotals();
+        UpdateCustomerDisplay();
+    }
+
+    private CustomerDisplayForm? _customerDisplay;
+
+    private void UpdateCustomerDisplay()
+    {
+        try
+        {
+            if (Program.Services.Settings.Get("customer_display_enabled", "0") != "1") return;
+            if (_customerDisplay == null || _customerDisplay.IsDisposed)
+            {
+                _customerDisplay = new CustomerDisplayForm();
+                _customerDisplay.Show();
+            }
+            decimal.TryParse(_discount.Text.Replace(".", "").Replace(",", ""), out var disc);
+            var totals = SaleCalculator.Calculate(_cart, disc);
+            _customerDisplay.UpdateCart(_cart, totals.GrandTotal);
+        }
+        catch { /* customer display is optional and must never break POS */ }
     }
 
     private void UpdateTotals()
@@ -434,7 +519,7 @@ public class PosPage : Panel, IPage
         if (_cartGrid.Columns.Contains("price")) Theme.MoneyColumn(_cartGrid, "price");
     }
 
-    private void HoldCart()
+    public void HoldCart()
     {
         if (_cart.Count == 0) { UiHelpers.Warn("Keranjang kosong."); return; }
         var label = InputDialog.Show("Label parkir (mis. nama pembeli):", "Hold Transaksi");
@@ -452,7 +537,7 @@ public class PosPage : Panel, IPage
         UiHelpers.Info("Transaksi diparkir. Buka 'Panggil (Recall)' untuk melanjutkan.");
     }
 
-    private void RecallCart()
+    public void RecallCart()
     {
         var holds = UiHelpers.Run(() => Program.Services.Holds.List(Program.Session!.UserId)) ?? new();
         if (holds.Count == 0) { UiHelpers.Info("Tidak ada transaksi yang diparkir."); return; }
@@ -612,7 +697,8 @@ public class PosPage : Panel, IPage
                 Price = l.Price,
                 Cost = l.Cost,
                 Discount = l.Discount,
-                Subtotal = l.Subtotal
+                Subtotal = l.Subtotal,
+                SerialNos = l.SerialNos
             }).ToList(),
             Payments = payment.ResultPayments
                 .Where(p => p.Method != PaymentMethod.Credit || p.Amount > 0)
@@ -703,6 +789,7 @@ public class PosPage : Panel, IPage
         ((MainForm?)FindForm())?.UpdateStatusBar();
     }
 }
+
 
 
 

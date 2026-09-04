@@ -221,6 +221,12 @@ public class ProductEditDialog : Form
     private readonly TextBox _wholesalePrice = Theme.TextBox(140);
     private readonly TextBox _wholesaleMinQty = Theme.TextBox(140);
     private readonly ComboBox _taxMode = Theme.Combo(140);
+    private readonly TextBox _brand = Theme.TextBox(160);
+    private readonly TextBox _location = Theme.TextBox(110);
+    private readonly TextBox _reorderPoint = Theme.TextBox(100);
+    private readonly TextBox _targetStock = Theme.TextBox(100);
+    private readonly CheckBox _trackBatch = new() { Text = "Batch/expiry", AutoSize = true, Font = Theme.FontBase };
+    private readonly CheckBox _trackSerial = new() { Text = "Serial/IMEI", AutoSize = true, Font = Theme.FontBase };
 
     public ProductEditDialog(Product? product)
     {
@@ -229,7 +235,7 @@ public class ProductEditDialog : Form
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false; MinimizeBox = false;
         StartPosition = FormStartPosition.CenterParent;
-        ClientSize = new Size(560, 600);
+        ClientSize = new Size(560, 720);
         BackColor = Theme.Bg;
         Font = Theme.FontBase;
 
@@ -258,6 +264,12 @@ public class ProductEditDialog : Form
         Field("Min Qty Grosir:", _wholesaleMinQty);
         Field("Mode PPN:", _taxMode);
         _taxMode.Items.AddRange(new object[] { "Ikut toko", "Tanpa PPN", "Include PPN", "Exclude PPN" });
+        Field("Merk/Brand:", _brand);
+        Field("Lokasi/Rak:", _location);
+        Field("Reorder Point:", _reorderPoint);
+        Field("Target Stok:", _targetStock);
+        _trackBatch.Location = new Point(160, y - 1); Controls.Add(_trackBatch);
+        _trackSerial.Location = new Point(280, y - 1); Controls.Add(_trackSerial); y += 32;
         Field("Gambar:", _imagePath, 280);
 
         var browse = Theme.SecondaryButton("...", 40, 28);
@@ -298,6 +310,12 @@ public class ProductEditDialog : Form
             _sellingPrice.Text = product.SellingPrice.ToString("0.##");
             _wholesalePrice.Text = product.WholesalePrice > 0 ? product.WholesalePrice.ToString("0.##") : "";
             _wholesaleMinQty.Text = product.WholesaleMinQty > 0 ? product.WholesaleMinQty.ToString("0.##") : "";
+            _brand.Text = product.Brand;
+            _location.Text = product.Location;
+            _reorderPoint.Text = product.ReorderPoint > 0 ? product.ReorderPoint.ToString("0.##") : "";
+            _targetStock.Text = product.TargetStock > 0 ? product.TargetStock.ToString("0.##") : "";
+            _trackBatch.Checked = product.TrackBatch;
+            _trackSerial.Checked = product.TrackSerial;
             _taxMode.SelectedIndex = product.TaxMode switch
             {
                 KasirPro.Core.Domain.TaxMode.None => 1,
@@ -366,6 +384,12 @@ public class ProductEditDialog : Form
         product.SellingPrice = Parse(_sellingPrice);
         product.WholesalePrice = Parse(_wholesalePrice);
         product.WholesaleMinQty = Parse(_wholesaleMinQty);
+        product.Brand = _brand.Text.Trim();
+        product.Location = _location.Text.Trim();
+        product.ReorderPoint = Parse(_reorderPoint);
+        product.TargetStock = Parse(_targetStock);
+        product.TrackBatch = _trackBatch.Checked;
+        product.TrackSerial = _trackSerial.Checked;
         product.TaxMode = _taxMode.SelectedIndex switch
         {
             1 => KasirPro.Core.Domain.TaxMode.None,
