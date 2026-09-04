@@ -1,5 +1,10 @@
 # KasirPro - Professional Offline Retail POS for Windows
 
+**🌐 Bahasa / Language / اللغة:**
+[🇮🇩 Indonesia (README.md)](README.md) · [🇬🇧 English (README.EN.md)](README.EN.md) · [🇸🇦 العربية (README.AR.md)](README.AR.md)
+
+---
+
 Aplikasi kasir (POS) desktop Windows **100% offline** untuk toko retail:
 C# WinForms + SQLite lokal, .NET 10, tanpa internet, tanpa server, tanpa cloud.
 Portable - seluruh data berada di folder aplikasi, cukup dipindahkan ke flashdisk.
