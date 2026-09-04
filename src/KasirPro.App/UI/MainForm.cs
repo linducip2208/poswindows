@@ -423,6 +423,9 @@ public class MainForm : Form
             case Keys.F11:
                 ToggleFullscreen();
                 return true;
+            case Keys.F1:
+                new HelpDialog().ShowDialog(this);
+                return true;
         }
         return base.ProcessCmdKey(ref msg, keyData);
     }

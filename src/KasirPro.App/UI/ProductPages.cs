@@ -52,7 +52,10 @@ public class ProductListPage : Panel, IPage
         var btnExport = Theme.SecondaryButton("Export", 80);
         btnExport.Location = new Point(1024, 8);
         btnExport.Click += (s, e) => ExportCsv();
-        toolbar.Controls.AddRange(new Control[] { _search, _category, _lowOnly, _sort, btnAdd, btnEdit, btnDelete, btnImport, btnExport });
+        var btnPrices = Theme.SecondaryButton("Harga Level", 110);
+        btnPrices.Location = new Point(1110, 8);
+        btnPrices.Click += (s, e) => EditPriceLevels();
+        toolbar.Controls.AddRange(new Control[] { _search, _category, _lowOnly, _sort, btnAdd, btnEdit, btnDelete, btnImport, btnExport, btnPrices });
 
         Theme.StyleGrid(_grid);
         _grid.Dock = DockStyle.Fill;
@@ -138,6 +141,14 @@ public class ProductListPage : Panel, IPage
         if (p == null) return;
         new ProductEditDialog(p).ShowDialog();
         LoadData();
+    }
+
+    private void EditPriceLevels()
+    {
+        if (_grid.CurrentRow == null) return;
+        var id = Convert.ToInt64(_grid.CurrentRow.Cells["_id"].Value);
+        var name = _grid.CurrentRow.Cells["name"].Value?.ToString() ?? "";
+        new PriceLevelEditorDialog(id, name).ShowDialog(FindForm());
     }
 
     private void DeleteSelected()

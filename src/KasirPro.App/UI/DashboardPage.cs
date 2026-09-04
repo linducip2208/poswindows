@@ -10,6 +10,13 @@ public class DashboardPage : Panel, IPage
     private readonly Label _cardTx = ValueLabel();
     private readonly Label _cardProfit = ValueLabel();
     private readonly Label _cardLow = ValueLabel();
+
+    private readonly Dictionary<string, Label> _mini = new();
+    private static readonly string[] MiniKeys =
+        { "avg", "items", "cash", "qris", "debit", "transfer", "receivable", "payable", "stockval", "shift", "gross", "credit" };
+    private static readonly string[] MiniTitles =
+        { "Avg Basket", "Items Sold", "Cash Sales", "QRIS Sales", "Debit Sales", "Transfer", "Receivable", "Payable", "Stock Value", "Open Shift", "Gross Sales", "Credit Sales" };
+
     private readonly TrendChart _chart = new() { Dock = DockStyle.Fill };
     private readonly DataGridView _gridRecent = NewGrid();
     private readonly DataGridView _gridTop = NewGrid();
@@ -21,7 +28,7 @@ public class DashboardPage : Panel, IPage
         BackColor = Theme.Bg;
         Padding = new Padding(14);
 
-        var cards = new TableLayoutPanel { Dock = DockStyle.Top, Height = 108, ColumnCount = 4, RowCount = 1, BackColor = Theme.Bg };
+        var cards = new TableLayoutPanel { Dock = DockStyle.Top, Height = 96, ColumnCount = 4, RowCount = 1, BackColor = Theme.Bg };
         for (var i = 0; i < 4; i++) cards.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25));
         var cardSales = SummaryCard(Strings.T("dash_sales_today"), _cardSales, Theme.Accent);
         var cardTx = SummaryCard(Strings.T("dash_transactions"), _cardTx, Theme.Success);
@@ -37,7 +44,36 @@ public class DashboardPage : Panel, IPage
         cards.Controls.Add(cardLow, 3, 0);
         cards.Margin = Padding.Empty;
 
-        var body = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 2, BackColor = Theme.Bg, Padding = new Padding(0, 12, 0, 0) };
+        // ---- mini widgets (2 rows x 4) ----
+        var minis = new TableLayoutPanel { Dock = DockStyle.Top, Height = 132, ColumnCount = 4, RowCount = 2, BackColor = Theme.Bg };
+        for (var i = 0; i < 4; i++) minis.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25));
+        minis.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
+        minis.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
+        for (var i = 0; i < MiniKeys.Length; i++)
+        {
+            var value = new Label
+            {
+                Dock = DockStyle.Fill,
+                Font = new Font("Segoe UI", 10.5f, FontStyle.Bold),
+                ForeColor = Theme.Text,
+                TextAlign = ContentAlignment.MiddleLeft,
+                Text = "-"
+            };
+            _mini[MiniKeys[i]] = value;
+            var card = Theme.CardFluid();
+            var t = Theme.Label(MiniTitles[i], 8, false, Theme.Muted);
+            t.Dock = DockStyle.Top;
+            t.Height = 16;
+            card.Controls.Add(value);
+            card.Controls.Add(t);
+            var col = i % 4;
+            var row = i / 4;
+            card.Margin = new Padding(col == 0 ? 0 : 4, row == 0 ? 6 : 2, 4, row == 0 ? 2 : 0);
+            minis.Controls.Add(card, col, row);
+        }
+        minis.Margin = Padding.Empty;
+
+        var body = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 2, BackColor = Theme.Bg, Padding = new Padding(0, 10, 0, 0) };
         body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 55));
         body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45));
         body.RowStyles.Add(new RowStyle(SizeType.Percent, 48));
@@ -70,6 +106,7 @@ public class DashboardPage : Panel, IPage
         body.SetColumnSpan(topCard, 2);
 
         Controls.Add(body);
+        Controls.Add(minis);
         Controls.Add(cards);
     }
 
@@ -111,6 +148,23 @@ public class DashboardPage : Panel, IPage
 
         _chart.Data = summary.Trend;
         _chart.Invalidate();
+
+        // mini widgets
+        _mini["avg"].Text = Money.FormatPlain(summary.AvgBasket);
+        _mini["items"].Text = summary.ItemsSoldToday.ToString("0.##");
+        _mini["gross"].Text = Money.FormatPlain(summary.GrossSalesToday);
+        _mini["cash"].Text = Money.FormatPlain(summary.CashSalesToday);
+        _mini["qris"].Text = Money.FormatPlain(summary.QrisSalesToday);
+        _mini["debit"].Text = Money.FormatPlain(summary.DebitSalesToday);
+        _mini["transfer"].Text = Money.FormatPlain(summary.TransferSalesToday);
+        _mini["credit"].Text = Money.FormatPlain(summary.CreditSalesToday);
+        _mini["receivable"].Text = Money.FormatPlain(summary.ReceivableOutstanding);
+        _mini["receivable"].ForeColor = summary.ReceivableOutstanding > 0 ? Theme.Warning : Theme.Text;
+        _mini["payable"].Text = Money.FormatPlain(summary.PayableOutstanding);
+        _mini["payable"].ForeColor = summary.PayableOutstanding > 0 ? Theme.Danger : Theme.Text;
+        _mini["stockval"].Text = Money.FormatPlain(summary.StockValue);
+        _mini["shift"].Text = summary.OpenShift ? $"Buka ({summary.OpenShiftSince})" : "Tertutup";
+        _mini["shift"].ForeColor = summary.OpenShift ? Theme.Success : Theme.Muted;
 
         _gridRecent.Columns.Clear();
         _gridRecent.Columns.Add("time", Strings.T("grid_time"));

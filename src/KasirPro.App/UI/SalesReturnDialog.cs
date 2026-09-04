@@ -10,6 +10,7 @@ public class SalesReturnDialog : Form
     private readonly DataGridView _invoices = new();
     private readonly DataGridView _items = new();
     private readonly TextBox _reason = Theme.TextBox(400);
+    private readonly ComboBox _refundMode = Theme.Combo(240);
     private Sale? _selectedSale;
 
     public SalesReturnDialog(Form? owner)
@@ -70,20 +71,26 @@ public class SalesReturnDialog : Form
         _items.ReadOnly = false;
         _items.CellValueChanged += (s, e) => UpdateSubtotals();
 
-        var bottom = new Panel { Dock = DockStyle.Bottom, Height = 120, BackColor = Theme.Bg };
+        var bottom = new Panel { Dock = DockStyle.Bottom, Height = 150, BackColor = Theme.Bg };
         var rl = Theme.Label("Alasan retur:", 9, true);
         rl.Location = new Point(16, 10);
         _reason.Location = new Point(110, 7);
+        var refundLabel = Theme.Label("Refund:", 9, true);
+        refundLabel.Location = new Point(16, 40);
+        _refundMode.Location = new Point(110, 36);
+        _refundMode.Items.AddRange(new object[] { "Tanpa refund (stok saja)", "Cash dari kas shift", "Store credit pelanggan" });
+        _refundMode.SelectedIndex = 0;
+        _refundMode.Width = 260;
         var processBtn = Theme.SuccessButton("PROSES RETUR", 150, 40);
-        processBtn.Location = new Point(700, 55);
+        processBtn.Location = new Point(700, 80);
         processBtn.Click += OnProcess;
         var closeBtn = Theme.SecondaryButton("Tutup", 90, 40);
-        closeBtn.Location = new Point(860, 55);
+        closeBtn.Location = new Point(860, 80);
         closeBtn.Click += (s, e) => Close();
         var summary = Theme.Label("Total retur: Rp 0", 11, true, Theme.Danger);
-        summary.Location = new Point(16, 62);
+        summary.Location = new Point(16, 84);
         summary.Name = "summary";
-        bottom.Controls.AddRange(new Control[] { rl, _reason, processBtn, closeBtn, summary });
+        bottom.Controls.AddRange(new Control[] { rl, _reason, refundLabel, _refundMode, processBtn, closeBtn, summary });
 
         var main = new SplitContainer { Dock = DockStyle.Fill };
         main.Panel1.Controls.Add(_invoices);
@@ -166,8 +173,16 @@ public class SalesReturnDialog : Form
         var reason = string.IsNullOrWhiteSpace(_reason.Text) ? "Retur barang" : _reason.Text.Trim();
 
         var result = UiHelpers.Run(() =>
-            Program.Services.Sales.CreateReturn(_selectedSale.Id, items, reason,
-                Program.Session!.UserId, Program.Session.Username));
+        {
+            var session = _refundMode.SelectedIndex == 1
+                ? Program.Services.Cash.GetOpenSession(Program.Session!.UserId) : null;
+            if (_refundMode.SelectedIndex == 1 && session == null)
+                throw new InvalidOperationException("Cash refund butuh shift terbuka. Buka shift dulu atau pilih mode lain.");
+            return Program.Services.Sales.CreateReturn(_selectedSale.Id, items, reason,
+                Program.Session!.UserId, Program.Session.Username,
+                _refundMode.SelectedIndex == 1 ? "CASH" : _refundMode.SelectedIndex == 2 ? "CREDIT" : "NONE",
+                session?.Id ?? 0);
+        });
         if (result == null) return;
         Program.Session!.DataChangedSinceBackup = true;
         UiHelpers.Info($"Retur {result.ReturnNo} berhasil.\nTotal: {Money.Format(result.Total)}\nStok sudah dikembalikan.");

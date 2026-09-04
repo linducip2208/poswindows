@@ -246,6 +246,49 @@ public class ReportService
                     .Replace("{tot}", DbEx.MoneyColumn("s.total"))).ToList();
 
             s.TopProducts = ProductSales(today.AddDays(-6), today, 5);
+
+            // ---- extended widgets (v2.2) ----
+            var pay = c.Query<(string Method, decimal Amount)>(
+                @"SELECT sp.method AS Method, CAST(ROUND(SUM(sp.amount)/100.0,2) AS REAL) AS Amount
+                FROM sale_payments sp JOIN sales s ON s.id=sp.sale_id
+                WHERE s.status='COMPLETED' AND s.sale_date >= @f AND s.sale_date <= @t2
+                GROUP BY sp.method", new { f = fromToday, t2 = toToday }).ToList();
+            foreach (var (method, amount) in pay)
+            {
+                switch (method)
+                {
+                    case "Cash": s.CashSalesToday = amount; break;
+                    case "Qris": s.QrisSalesToday = amount; break;
+                    case "Debit": s.DebitSalesToday = amount; break;
+                    case "Transfer": s.TransferSalesToday = amount; break;
+                    case "Credit": s.CreditSalesToday = amount; break;
+                }
+            }
+
+            var itemsAgg = c.ExecuteScalar<decimal>(
+                @"SELECT COALESCE(SUM(si.qty),0) FROM sale_items si
+                JOIN sales s ON s.id=si.sale_id
+                WHERE s.status='COMPLETED' AND s.sale_date >= @f AND s.sale_date <= @t2",
+                new { f = fromToday, t2 = toToday });
+            s.ItemsSoldToday = itemsAgg;
+            s.AvgBasket = s.TransactionsToday > 0 ? Money.Round(s.SalesToday / s.TransactionsToday) : 0;
+
+            s.ReceivableOutstanding = c.ExecuteScalar<decimal>(
+                "SELECT COALESCE(CAST(ROUND(SUM(original_amount-paid_amount)/100.0,2) AS REAL),0) FROM sale_debts WHERE status != 'SETTLED'");
+            s.PayableOutstanding = c.ExecuteScalar<decimal>(
+                "SELECT COALESCE(CAST(ROUND(SUM(total-paid_amount)/100.0,2) AS REAL),0) FROM purchases WHERE status='COMPLETED' AND payment_status != 'PAID' AND total > paid_amount");
+            s.StockValue = c.ExecuteScalar<decimal>(
+                "SELECT COALESCE(CAST(ROUND(SUM(stock*purchase_price)/100.0,2) AS REAL),0) FROM products WHERE is_active=1");
+
+            var openShiftId = c.ExecuteScalar<long?>(
+                "SELECT id FROM cash_sessions WHERE status='OPEN' ORDER BY id DESC LIMIT 1");
+            if (openShiftId.HasValue)
+            {
+                s.OpenShift = true;
+                var openedAt = c.ExecuteScalar<string>(
+                    "SELECT opened_at FROM cash_sessions WHERE id=@id", new { id = openShiftId.Value });
+                if (DateTime.TryParse(openedAt, out var od)) s.OpenShiftSince = od.ToString("HH:mm");
+            }
             return s;
         });
     }

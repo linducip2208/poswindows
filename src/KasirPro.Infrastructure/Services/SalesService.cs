@@ -250,11 +250,14 @@ public class SalesService
         _audit.Log(userId, username, AuditAction.SaleVoid, "sale", saleId, $"Void: {reason}");
     }
 
-    /// <summary>Creates a sale return (full or partial items) and restores stock.</summary>
+    /// <summary>Creates a sale return (full or partial items) and restores stock.
+    /// refundMode: NONE (stock only), CASH (cash out from shift), CREDIT (customer store credit).</summary>
     public SaleReturn CreateReturn(long saleId, List<(long SaleItemId, decimal Qty)> returnItems,
-        string reason, long userId, string username)
+        string reason, long userId, string username, string refundMode = "NONE", long cashSessionId = 0)
     {
         if (returnItems.Count == 0) throw new InvalidOperationException("Pilih item yang diretur");
+        if (refundMode == "CASH" && cashSessionId <= 0)
+            throw new InvalidOperationException("Cash refund butuh shift terbuka");
         var now = DbEx.Iso(DateTime.Now);
         var no = InventoryService.NextNo(_db, "RTN", "sale_returns", "return_no");
 
@@ -317,6 +320,27 @@ public class SalesService
                 InventoryService.ApplyMovement(c, it.ProductId, StockRef.SaleReturn, returnId,
                     StockDirection.In, it.Qty, $"Retur {no} ({sale.InvoiceNo})", userId, now);
             }
+
+            // refund handling
+            var customerIdForRefund = c.ExecuteScalar<long?>(
+                "SELECT customer_id FROM sales WHERE id=@id", new { id = saleId }) ?? 0;
+            if (refundMode == "CASH" && cashSessionId > 0)
+            {
+                c.Execute(@"INSERT INTO cash_movements (cash_session_id, type, direction, amount, reference_type, reference_id, notes, user_id, created_at)
+                    VALUES (@csid, 'SALE_RETURN', 'OUT', @amt, 'RETURN', @rid, 'Refund retur ' || @rno, @uid, @t)",
+                    new { csid = cashSessionId, amt = DbEx.MoneyParam(total), rid = returnId, rno = no, uid = userId, t = now });
+                c.Execute(@"UPDATE cash_sessions SET cash_out = cash_out + @amt, updated_at=@t WHERE id=@csid",
+                    new { amt = DbEx.MoneyParam(total), t = now, csid = cashSessionId });
+            }
+            else if (refundMode == "CREDIT" && customerIdForRefund > 1)
+            {
+                c.Execute(@"INSERT INTO store_credit_ledger (customer_id, direction, amount, reference_type, reference_id, notes, user_id, created_at)
+                    VALUES (@cust, 'IN', @amt, 'sale_return', @rid, 'Store credit retur ' || @rno, @uid, @t)",
+                    new { cust = customerIdForRefund, amt = DbEx.MoneyParam(total), rid = returnId, rno = no, uid = userId, t = now });
+                c.Execute(@"UPDATE customers SET store_credit = CAST(store_credit + @amt AS INTEGER) WHERE id=@cust",
+                    new { amt = DbEx.MoneyParam(total), cust = customerIdForRefund });
+            }
+
             return new SaleReturn
             {
                 Id = returnId, ReturnNo = no, SaleId = saleId, InvoiceNo = sale.InvoiceNo,

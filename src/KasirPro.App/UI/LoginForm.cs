@@ -39,7 +39,11 @@ public class LoginForm : Form
             Program.Services.Users.CreateAdmin("admin", "admin123", "Administrator");
             _user.Items.Add("admin");
         }
-        _user.SelectedIndex = 0;
+        // pre-select the last logged-in user (username only, no secrets)
+        var lastUser = UiHelpers.Run(() => Program.Services.Settings.Get("last_user", ""));
+        var idx = _user.Items.IndexOf(lastUser);
+        _user.SelectedIndex = idx >= 0 ? idx : 0;
+        _password.Focus();
 
         var passLabel = Theme.Label(Strings.T("login_password"), 9, true);
         passLabel.Location = new Point(40, 176);
@@ -89,6 +93,11 @@ public class LoginForm : Form
             return;
         }
         LoggedInUserId = user.Id;
+        UiHelpers.Run<object?>(() =>
+        {
+            Program.Services.Settings.Set("last_user", user.Username);
+            return null;
+        });
         DialogResult = DialogResult.OK;
         Close();
     }

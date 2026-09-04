@@ -97,6 +97,39 @@ public class PosPage : Panel, IPage
         Theme.MoneyColumn(_cartGrid, "subtotal");
         _cartGrid.CellDoubleClick += (s, e) => RemoveLine();
         _cartGrid.SelectionMode = DataGridViewSelectionMode.CellSelect;
+        _cartGrid.ReadOnly = false;
+        _cartGrid.Columns["qty"].ReadOnly = false;
+        _cartGrid.Columns["name"].ReadOnly = true;
+        _cartGrid.Columns["price"].ReadOnly = true;
+        _cartGrid.Columns["subtotal"].ReadOnly = true;
+        _cartGrid.Columns["_pid"].ReadOnly = true;
+        _cartGrid.CellEndEdit += (s, e) =>
+        {
+            if (e.RowIndex < 0 || e.ColumnIndex != 1) { RefreshCart(); return; }
+            var row = _cartGrid.Rows[e.RowIndex];
+            var pid = Convert.ToInt64(row.Cells["_pid"].Value ?? 0);
+            var line = _cart.FirstOrDefault(l => l.ProductId == pid);
+            if (line == null) { RefreshCart(); return; }
+            if (!decimal.TryParse(row.Cells["qty"].Value?.ToString(), out var newQty) || newQty <= 0)
+            {
+                UiHelpers.Warn("Qty tidak valid.");
+                RefreshCart();
+                return;
+            }
+            if (line.SerialNos.Count > 0 && newQty != line.SerialNos.Count)
+            {
+                UiHelpers.Warn($"Produk serial-tracked: qty harus = jumlah serial terpilih ({line.SerialNos.Count}).");
+                RefreshCart();
+                return;
+            }
+            line.Qty = newQty;
+            // re-evaluate price tier
+            var customerId = (_customer.SelectedItem as Customer)?.Id ?? 1;
+            var reResolved = UiHelpers.Run(() => Program.Services.Prices.Resolve(
+                line.ProductId, customerId, line.Qty, line.Price));
+            if (reResolved > 0) line.Price = reResolved;
+            RefreshCart();
+        };
 
         _emptyHint = Theme.Label("Belum ada item.\nScan barcode atau pilih produk di sebelah kiri.", 10, false, Theme.Muted);
         _emptyHint.Dock = DockStyle.Fill;
@@ -718,6 +751,7 @@ public class PosPage : Panel, IPage
         if (saved == null || saved.Id == 0) return;
 
         // loyalty: apply earn + redemption
+        string? loyaltyLine = null;
         if (payment.PointsRedeemed > 0 && selectedCustomer is { Id: > 1 })
         {
             UiHelpers.Run<object?>(() =>
@@ -727,6 +761,9 @@ public class PosPage : Panel, IPage
                     Program.Session!.UserId, Program.Session.Username);
                 return null;
             });
+            var earned = Program.Services.Loyalty.EarnFor(totals.GrandTotal);
+            var balance = Program.Services.Loyalty.GetPoints(selectedCustomer.Id);
+            loyaltyLine = $"Poin didapat: {earned:N0}  |  Saldo poin: {balance:N0}";
         }
 
         Program.Session.DataChangedSinceBackup = true;
@@ -766,7 +803,10 @@ public class PosPage : Panel, IPage
         success.ShowDialog(FindForm());
         if (success.PrintReceipt)
         {
-            try { Program.Services.Printer.PrintReceipt(saved); }
+            var extras = new List<string>();
+            if (loyaltyLine != null) extras.Add(loyaltyLine);
+            if (saved.Outstanding > 0) extras.Add($"Piutang: {Money.FormatPlain(saved.Outstanding)}");
+            try { Program.Services.Printer.PrintReceipt(saved, null, 1, false, extras); }
             catch (Exception ex)
             {
                 // printer fallback: sale already saved, do not fail checkout
@@ -775,7 +815,7 @@ public class PosPage : Panel, IPage
                     "Transaksi berhasil tersimpan, tetapi struk gagal dicetak:\n" + ex.Message +
                     "\n\nCoba cetak ulang?", "Printer", MessageBoxButtons.RetryCancel, MessageBoxIcon.Warning);
                 if (retry == DialogResult.Retry)
-                    UiHelpers.Run(() => Program.Services.Printer.PrintReceipt(saved));
+                    UiHelpers.Run(() => Program.Services.Printer.PrintReceipt(saved, null, 1, false, extras));
             }
         }
 

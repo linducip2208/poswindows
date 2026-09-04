@@ -75,11 +75,22 @@ public class PrinterService
     public static string[] GetInstalledPrinters() =>
         PrinterSettings.InstalledPrinters.Cast<string>().ToArray();
 
-    public bool PrintReceipt(Sale sale, string? printerName = null, int copies = 1, bool isReprint = false)
+    /// <summary>
+    /// Prints a receipt. extraLines appear before the footer (points earned/balance,
+    /// store credit, promo info). isReprint adds a REPRINT watermark.
+    /// </summary>
+    public bool PrintReceipt(Sale sale, string? printerName = null, int copies = 1,
+        bool isReprint = false, IReadOnlyList<string>? extraLines = null)
     {
         try
         {
             var lines = BuildReceipt(sale, isReprint);
+            if (extraLines != null)
+            {
+                // insert extras before the final separator/footer block
+                var insertAt = Math.Max(0, lines.Count - 2);
+                lines.InsertRange(insertAt, extraLines);
+            }
             var paper = _settings.ReceiptPaper == "58" ? 58 : 80;
             var name = string.IsNullOrWhiteSpace(printerName) ? _settings.PrinterName : printerName;
             if (string.IsNullOrWhiteSpace(name))
@@ -204,7 +215,17 @@ public class PrinterService
         lines.Add("[B]" + LeftRight("TOTAL", Money.FormatPlain(sale.Total), width));
         foreach (var p in sale.Payments)
         {
-            lines.Add(LeftRight(p.Method.ToString(), Money.FormatPlain(p.Amount), width));
+            var label = p.Method switch
+            {
+                PaymentMethod.Cash => "TUNAI",
+                PaymentMethod.Qris => "QRIS",
+                PaymentMethod.Debit => "DEBIT",
+                PaymentMethod.Transfer => "TRANSFER",
+                PaymentMethod.Credit => "PIUTANG",
+                PaymentMethod.Points => "POIN",
+                _ => p.Method.ToString()
+            };
+            lines.Add(LeftRight(label, Money.FormatPlain(p.Amount), width));
         }
         var paid = sale.Payments.Sum(p => p.Amount);
         var change = Money.Round(paid - sale.Total);

@@ -111,6 +111,21 @@ public class DashboardSummary
     public List<TrendPoint> Trend { get; set; } = new();
     public List<Sale> RecentSales { get; set; } = new();
     public List<ProductSalesRow> TopProducts { get; set; } = new();
+
+    // extended widgets (v2.2)
+    public decimal GrossSalesToday { get; set; }
+    public decimal AvgBasket { get; set; }
+    public decimal ItemsSoldToday { get; set; }
+    public decimal CashSalesToday { get; set; }
+    public decimal QrisSalesToday { get; set; }
+    public decimal DebitSalesToday { get; set; }
+    public decimal TransferSalesToday { get; set; }
+    public decimal CreditSalesToday { get; set; }
+    public decimal ReceivableOutstanding { get; set; }
+    public decimal PayableOutstanding { get; set; }
+    public decimal StockValue { get; set; }
+    public bool OpenShift { get; set; }
+    public string OpenShiftSince { get; set; } = "";
 }
 
 public class TrendPoint

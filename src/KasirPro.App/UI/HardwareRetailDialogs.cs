@@ -375,7 +375,7 @@ public class BarcodeManagerDialog : Form
 
         var header = Theme.PageHeader("Barcode & Labels", "Generate barcode internal, cek duplikat, cetak label");
 
-        var toolbar = new Panel { Dock = DockStyle.Top, Height = 80, BackColor = Theme.Bg };
+        var toolbar = new Panel { Dock = DockStyle.Top, Height = 200, BackColor = Theme.Bg };
         var btnGen = Theme.PrimaryButton("GENERATE INTERNAL BARCODE", 240, 34);
         btnGen.Location = new Point(16, 8);
         btnGen.Click += (s, e) => GenerateInternal();
@@ -405,7 +405,24 @@ public class BarcodeManagerDialog : Form
         btnPreview.Location = new Point(685, 44);
         btnPreview.Click += (s, e) => Preview();
 
-        toolbar.Controls.AddRange(new Control[] { btnGen, btnDup, btnValidate, lSize, _size, _showStore, _showPrice, _showSku, lCopies, _copies, btnPrint, btnPreview });
+        var assignLabel = Theme.Label("Scan/assign barcode ke produk terpilih:", 9, true);
+        assignLabel.Location = new Point(16, 138);
+        var assignBox = Theme.TextBox(220);
+        assignBox.Location = new Point(16, 160);
+        assignBox.PlaceholderText = "Scan barcode di sini...";
+        assignBox.KeyDown += (s, e) =>
+        {
+            if (e.KeyCode != Keys.Enter) return;
+            e.SuppressKeyPress = true;
+            AssignBarcode(assignBox.Text.Trim());
+            assignBox.Clear();
+        };
+        var assignBtn = Theme.PrimaryButton("ASSIGN", 100, 28);
+        assignBtn.Location = new Point(244, 158);
+        assignBtn.Click += (s, e) => { AssignBarcode(assignBox.Text.Trim()); assignBox.Clear(); };
+
+        toolbar.Controls.AddRange(new Control[] { btnGen, btnDup, btnValidate, lSize, _size, _showStore, _showPrice, _showSku, lCopies, _copies, btnPrint, btnPreview,
+            assignLabel, assignBox, assignBtn });
 
         Theme.StyleGrid(_grid);
         _grid.Dock = DockStyle.Fill;
@@ -443,6 +460,42 @@ public class BarcodeManagerDialog : Form
 
     private IEnumerable<DataGridViewRow> Selected() =>
         _grid.Rows.Cast<DataGridViewRow>().Where(r => !r.IsNewRow && Convert.ToBoolean(r.Cells["sel"].Value ?? false));
+
+    /// <summary>Scan-to-assign: attaches a scanned barcode to the checked product with validation.</summary>
+    private void AssignBarcode(string barcode)
+    {
+        if (string.IsNullOrWhiteSpace(barcode)) { UiHelpers.Warn("Scan barcode dulu."); return; }
+        var rows = Selected().ToList();
+        if (rows.Count != 1) { UiHelpers.Warn("Centang TEPAT SATU produk untuk assign barcode."); return; }
+
+        var numeric = barcode.All(char.IsDigit);
+        if (numeric && barcode.Length is 8 or 13 && !BarcodeMath.IsValidGtin(barcode))
+        {
+            UiHelpers.Error($"Check digit EAN '{barcode}' salah. Barcode tidak valid.");
+            System.Media.SystemSounds.Hand.Play();
+            return;
+        }
+        var pid = Convert.ToInt64(rows[0].Cells["_id"].Value);
+        var code = rows[0].Cells["code"].Value?.ToString() ?? "";
+        var result = UiHelpers.Run(() =>
+        {
+            var owner = Program.DbMain.With(c => c.ExecuteScalar<long>(
+                "SELECT product_id FROM product_barcodes WHERE barcode=@b", new { b = barcode }));
+            if (owner != 0 && owner != pid)
+                throw new InvalidOperationException($"Barcode sudah dipakai produk lain (ID {owner})");
+            Program.DbMain.With(c => c.Execute(@"INSERT INTO product_barcodes (product_id, barcode, barcode_type, created_at)
+                VALUES (@p, @b, @t, @now)", new { p = pid, b = barcode, t = numeric ? "EAN13" : "CODE128", now = DbEx.Iso(DateTime.Now) }));
+            Program.Services.Audit.Log(Program.Session!.UserId, Program.Session.Username,
+                "BARCODE_ASSIGN", "product", pid, $"{code} <- {barcode}");
+            return true;
+        });
+        if (result)
+        {
+            System.Media.SystemSounds.Asterisk.Play();
+            rows[0].Cells["barcode"].Value = barcode;
+            UiHelpers.Info($"Barcode '{barcode}' ditambahkan ke produk {code}.");
+        }
+    }
 
     private void GenerateInternal()
     {
@@ -677,6 +730,7 @@ public static class BarcodeRenderer
         return raw.Split(' ');
     }
 }
+
 
 
 
