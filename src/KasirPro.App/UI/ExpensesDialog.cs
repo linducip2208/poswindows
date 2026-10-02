@@ -49,10 +49,10 @@ public sealed class ExpensesDialog : Form
         _grid.Columns.Add("date", "Tanggal");
         _grid.Columns.Add("category", "Kategori");
         _grid.Columns.Add("description", "Keterangan");
-        var amount = _grid.Columns.Add("amount", "Jumlah");
+        _grid.Columns.Add("amount", "Jumlah");
         _grid.Columns.Add("method", "Pembayaran");
         _grid.Columns.Add("user", "Petugas");
-        Theme.MoneyColumn(_grid, amount);
+        Theme.MoneyColumn(_grid, "amount");
         _grid.Columns["date"].FillWeight = 16;
         _grid.Columns["category"].FillWeight = 18;
         _grid.Columns["description"].FillWeight = 32;

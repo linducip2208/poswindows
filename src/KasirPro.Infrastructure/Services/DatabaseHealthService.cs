@@ -1,3 +1,5 @@
+using Dapper;
+
 namespace KasirPro.Infrastructure.Services;
 
 public sealed record DatabaseHealth(
