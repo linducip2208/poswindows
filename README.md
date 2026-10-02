@@ -9,7 +9,7 @@ Aplikasi kasir (POS) desktop Windows **100% offline** untuk toko retail:
 C# WinForms + SQLite lokal, .NET 10, tanpa internet, tanpa server, tanpa cloud.
 Portable - seluruh data berada di folder aplikasi, cukup dipindahkan ke flashdisk.
 
-## Fitur Utama (v2.0.0)
+## Fitur Utama (v2.4.0)
 
 **Kasir (POS)**
 - Barcode scan instan (in-memory scan cache, USB HID / scanner 2.4GHz / Bluetooth)
@@ -67,7 +67,7 @@ KasirPro.Core       Domain: entities, Money (integer cents), calculators, promo 
 KasirPro.Infrastructure  SQLite (Dapper), services, migrations, printing, backup, updater
 KasirPro.Licensing  Machine ID + ECDSA P-256 token verify (public key only)
 KasirPro.Keygen     MASTER KEYGEN (developer only): private key DPAPI + keygen.db
-KasirPro.Tests      157 xUnit tests
+KasirPro.Tests      186 xUnit tests
 ```
 
 Layer: UI -> Services -> Domain -> Infrastructure -> SQLite. Uang = **integer cents**

@@ -7,7 +7,7 @@
     <RootNamespace>KasirPro.Keygen</RootNamespace>
     <AssemblyName>KasirPro.Keygen</AssemblyName>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
-    <Version>1.1.0</Version>
+    <Version>2.4.0</Version>
     <Product>KasirPro License Manager</Product>
     <Company>KasirPro</Company>
     <AssemblyTitle>KasirPro Master Keygen</AssemblyTitle>
@@ -15,8 +15,7 @@
 
   <ItemGroup>
     <PackageReference Include="Dapper" Version="2.1.28" />
-    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.0" />
-    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.12" />
   </ItemGroup>
 
   <ItemGroup>

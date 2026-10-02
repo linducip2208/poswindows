@@ -18,7 +18,7 @@ friendly · POS-hardware friendly · easy to back up · crash-safe database.
 
 ---
 
-## ✨ Complete Feature List (v2.0.0)
+## ✨ Complete Feature List (v2.4.0)
 
 ### 🛒 Cashier (POS) Screen
 - **Instant barcode scanning** — in-memory scan cache (all barcodes + SKUs loaded once),
@@ -127,7 +127,7 @@ KasirPro.Core            Domain: entities, Money (integer cents), calculators, p
 KasirPro.Infrastructure  SQLite (Dapper), services, migrations, printing, backup, updater
 KasirPro.Licensing       Machine ID + ECDSA P-256 token verification (public key only)
 KasirPro.Keygen          MASTER KEYGEN (developer only): DPAPI private key + keygen.db
-KasirPro.Tests           157 xUnit automated tests
+KasirPro.Tests           186 xUnit automated tests
 ```
 
 Layering: UI → Services → Domain → Infrastructure → SQLite.
@@ -259,7 +259,7 @@ user may not use; the service layer still rejects direct calls (+ audit entry).
 
 ## 🧪 Testing
 
-157 automated tests (xUnit): license sign/verify/tamper/expiry, RBAC matrix, promotions
+186 automated tests (xUnit): license sign/verify/tamper/expiry, RBAC matrix, promotions
 (all types + schedules + stacking), multi-price resolution, EAN/GTIN check digits,
 scale barcodes, split payments, loyalty & store credit ledgers, receivables + credit
 limit, void/return/exchange, stock ledger integrity, warehouse transfers, batches FEFO,

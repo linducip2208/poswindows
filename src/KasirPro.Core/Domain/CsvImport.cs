@@ -16,7 +16,6 @@ public static class CsvParser
         var row = new List<string>();
         var inQuotes = false;
         var sep = separators[0];
-        string? pendingQuoted = null;
 
         // auto-detect separator from the first line when ambiguous
         var firstLine = content.Split('\n').FirstOrDefault() ?? "";

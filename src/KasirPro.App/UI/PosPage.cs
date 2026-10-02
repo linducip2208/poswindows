@@ -240,10 +240,6 @@ public class PosPage : Panel, IPage
         return l;
     }
 
-    private Label _lblTotalValue = null!;
-
-    private Label TotalLineValue(string text, int y) => TotalLine(text, y);
-
     public void FocusBarcode()
     {
         _barcode.Focus();

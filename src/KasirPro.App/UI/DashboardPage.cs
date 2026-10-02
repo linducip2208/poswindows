@@ -20,7 +20,6 @@ public class DashboardPage : Panel, IPage
     private readonly TrendChart _chart = new() { Dock = DockStyle.Fill };
     private readonly DataGridView _gridRecent = NewGrid();
     private readonly DataGridView _gridTop = NewGrid();
-    private Panel _empty = null!;
 
     public DashboardPage()
     {
