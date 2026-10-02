@@ -10,7 +10,7 @@ public enum ReportKind
 {
     Sales, Purchase, Profit, ProductSales, Stock, StockMovement, LowStock, Cash, Cashier,
     Hourly, PaymentMethod, Category, CustomerSales, Valuation, NearExpiry, DeadStock,
-    Monthly, ReceivableAging, PayableAging, PromoUsage, Loyalty
+    Monthly, ReceivableAging, PayableAging, PromoUsage, Loyalty, Expenses
 }
 
 /// <summary>
@@ -95,6 +95,7 @@ public class ReportViewerForm : Form
         ReportKind.ReceivableAging => "Receivable Aging",
         ReportKind.PayableAging => "Payable Aging",
         ReportKind.PromoUsage => "Promotion Usage",
+        ReportKind.Expenses => "Pengeluaran Operasional",
         _ => "Loyalty Report"
     };
 
@@ -117,10 +118,10 @@ public class ReportViewerForm : Form
                     r.Date.ToString("dd/MM/yyyy HH:mm"), r.PurchaseNo, r.SupplierInvoice, r.Supplier,
                     r.Subtotal, r.Discount, r.Total, r.Status
                 })),
-            ReportKind.Profit => ToTable(new[] { ("Date", 0), ("Revenue", 1), ("Cost", 1), ("Profit", 1) },
+            ReportKind.Profit => ToTable(new[] { ("Date", 0), ("Revenue", 1), ("Cost", 1), ("Expenses", 1), ("Profit", 1) },
                 svc.Profit(from, to).Select(r => new object[]
                 {
-                    r.Date.ToString("dd/MM/yyyy"), r.Revenue, r.Cost, r.Profit
+                    r.Date.ToString("dd/MM/yyyy"), r.Revenue, r.Cost, r.Expenses, r.Profit
                 })),
             ReportKind.ProductSales => ToTable(new[] { ("Code", 0), ("Product", 0), ("Category", 0), ("Qty Sold", 2), ("Revenue", 1), ("Profit", 1) },
                 svc.ProductSales(from, to).Select(r => new object[]
@@ -207,6 +208,11 @@ public class ReportViewerForm : Form
                 Program.Services.Reports.PromoUsage(from, to).Select(r => new object[]
                 {
                     r.Code, r.Name, r.Uses, r.TotalDiscount
+                })),
+            ReportKind.Expenses => ToTable(new[] { ("Tanggal", 0), ("Kategori", 0), ("Keterangan", 0), ("Jumlah", 1), ("Pembayaran", 0), ("Petugas", 0) },
+                svc.Expenses(from, to).Select(r => new object[]
+                {
+                    r.Date.ToString("dd/MM/yyyy HH:mm"), r.Category, r.Description, r.Amount, r.PaymentMethod, r.User
                 })),
             ReportKind.Loyalty => ToTable(new[] { ("Pelanggan", 0), ("Poin", 2), ("Lifetime", 1) },
                 Program.Services.Reports.LoyaltyTop().Select(r => new object[]

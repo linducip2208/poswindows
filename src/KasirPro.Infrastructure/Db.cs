@@ -32,7 +32,11 @@ public class Db
         conn.Open();
         using (var cmd = conn.CreateCommand())
         {
-            cmd.CommandText = "PRAGMA foreign_keys=ON; PRAGMA busy_timeout=10000; PRAGMA synchronous=NORMAL;";
+            // WAL is intentional for the offline POS: readers remain available while a sale writes.
+            // This must be set on a real connection; appsettings.json alone does not configure SQLite.
+            cmd.CommandText = "PRAGMA journal_mode=WAL;";
+            cmd.ExecuteScalar();
+            cmd.CommandText = "PRAGMA foreign_keys=ON; PRAGMA busy_timeout=10000; PRAGMA synchronous=NORMAL; PRAGMA wal_autocheckpoint=1000; PRAGMA temp_store=MEMORY;";
             cmd.ExecuteNonQuery();
         }
         RunLightMaintenanceIfDue(conn);

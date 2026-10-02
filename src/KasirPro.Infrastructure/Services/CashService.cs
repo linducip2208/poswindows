@@ -8,11 +8,13 @@ public class CashService
 {
     private readonly Db _db;
     private readonly AuditService _audit;
+    private readonly PeriodCloseService? _periods;
 
-    public CashService(Db db, AuditService audit) { _db = db; _audit = audit; }
+    public CashService(Db db, AuditService audit, PeriodCloseService? periods = null) { _db = db; _audit = audit; _periods = periods; }
 
     public CashSession? OpenSession(long userId, string username, decimal openingCash)
     {
+        _periods?.EnsureOpen(DateTime.Now);
         var existing = GetOpenSession(userId);
         if (existing != null) return existing; // already open
 
@@ -68,6 +70,7 @@ public class CashService
 
     public void CashIn(long sessionId, decimal amount, string notes, long userId, string username)
     {
+        _periods?.EnsureOpen(DateTime.Now);
         if (amount <= 0) throw new InvalidOperationException("Jumlah harus lebih dari 0");
         _db.With(c =>
         {
@@ -82,6 +85,7 @@ public class CashService
 
     public void CashOut(long sessionId, decimal amount, string notes, long userId, string username)
     {
+        _periods?.EnsureOpen(DateTime.Now);
         if (amount <= 0) throw new InvalidOperationException("Jumlah harus lebih dari 0");
         _db.With(c =>
         {

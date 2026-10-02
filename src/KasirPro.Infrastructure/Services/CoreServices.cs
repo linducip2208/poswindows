@@ -127,6 +127,7 @@ public class SettingsService
     public bool SetupDone => Get("setup_done", "0") == "1";
     public bool AutoBackup => Get("auto_backup", "1") == "1";
     public int BackupKeep => int.TryParse(Get("backup_keep", "30"), out var k) ? k : 30;
+    public string BackupDirectory => Get("backup_dir", "");
     public string InvoicePrefix => Get("invoice_prefix", "INV");
     public bool AllowCredit => Get("allow_credit", "0") == "1";
     public string Language => Get("language", "id");

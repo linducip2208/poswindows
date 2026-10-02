@@ -49,6 +49,7 @@ public class ProfitRow
     public DateTime Date { get; set; }
     public decimal Revenue { get; set; }
     public decimal Cost { get; set; }
+    public decimal Expenses { get; set; }
     public decimal Profit { get; set; }
 }
 
@@ -102,11 +103,22 @@ public class CashierReportRow
     public decimal Profit { get; set; }
 }
 
+public class ExpenseReportRow
+{
+    public DateTime Date { get; set; }
+    public string Category { get; set; } = "";
+    public string Description { get; set; } = "";
+    public decimal Amount { get; set; }
+    public string PaymentMethod { get; set; } = "";
+    public string User { get; set; } = "";
+}
+
 public class DashboardSummary
 {
     public decimal SalesToday { get; set; }
     public int TransactionsToday { get; set; }
     public decimal ProfitToday { get; set; }
+    public decimal ExpensesToday { get; set; }
     public int LowStockCount { get; set; }
     public List<TrendPoint> Trend { get; set; } = new();
     public List<Sale> RecentSales { get; set; } = new();

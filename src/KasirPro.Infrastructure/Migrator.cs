@@ -756,6 +756,33 @@ public class Migrator
             ('drawer_pulse_off', '250', '2026-01-01 00:00:00');"
     };
 
+    private static readonly string[] V6 = new[]
+    {
+        @"CREATE TABLE IF NOT EXISTS expenses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            expense_date TEXT NOT NULL,
+            category TEXT NOT NULL,
+            description TEXT NOT NULL DEFAULT '',
+            amount INTEGER NOT NULL CHECK(amount > 0),
+            payment_method TEXT NOT NULL DEFAULT 'Cash',
+            cash_session_id INTEGER REFERENCES cash_sessions(id) ON DELETE SET NULL,
+            user_id INTEGER NOT NULL REFERENCES users(id),
+            status TEXT NOT NULL DEFAULT 'POSTED',
+            created_at TEXT NOT NULL
+        );",
+        @"CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(expense_date);",
+        @"CREATE INDEX IF NOT EXISTS idx_expenses_category ON expenses(category);",
+        @"CREATE INDEX IF NOT EXISTS idx_expenses_user ON expenses(user_id);",
+        @"CREATE TABLE IF NOT EXISTS period_closures (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            period_key TEXT NOT NULL UNIQUE,
+            closed_at TEXT NOT NULL,
+            closed_by INTEGER NOT NULL REFERENCES users(id),
+            notes TEXT NOT NULL DEFAULT ''
+        );",
+        @"CREATE INDEX IF NOT EXISTS idx_period_closures_key ON period_closures(period_key);"
+    };
+
     public int CurrentVersion
     {
         get
@@ -834,6 +861,17 @@ public class Migrator
                 foreach (var sql in V5)
                     conn.Execute(sql);
                 conn.Execute("INSERT INTO database_version (version, applied_at) VALUES (5, @applied_at)",
+                    new { applied_at = DbEx.Iso(DateTime.Now) });
+            });
+            applied++;
+        }
+        if (from < 6)
+        {
+            _db.Transaction(conn =>
+            {
+                foreach (var sql in V6)
+                    conn.Execute(sql);
+                conn.Execute("INSERT INTO database_version (version, applied_at) VALUES (6, @applied_at)",
                     new { applied_at = DbEx.Iso(DateTime.Now) });
             });
             applied++;

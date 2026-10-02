@@ -11,6 +11,7 @@ public static class Theme
     public static Color Accent = Color.FromArgb(37, 99, 235);
     public static Color AccentDark = Color.FromArgb(29, 78, 216);
     public static Color AccentLight = Color.FromArgb(219, 234, 254);
+    public static Color AccentSoft = Color.FromArgb(239, 246, 255);
     public static Color Bg = Color.FromArgb(244, 246, 249);
     public static Color Card = Color.White;
     public static Color Border = Color.FromArgb(226, 232, 240);
@@ -21,6 +22,7 @@ public static class Theme
     public static Color Warning = Color.FromArgb(217, 119, 6);
     public static Color GridHeader = Color.FromArgb(241, 245, 249);
     public static Color GridAlt = Color.FromArgb(248, 250, 252);
+    public static Color SurfaceRaised = Color.FromArgb(255, 255, 255);
 
     public static Font FontBase = new("Segoe UI", 9f);
     public static Font FontMedium = new("Segoe UI", 10f);
@@ -44,6 +46,7 @@ public static class Theme
             Font = FontMediumBold,
             Cursor = Cursors.Hand
         };
+        b.Padding = new Padding(10, 2, 10, 2);
         b.FlatAppearance.BorderSize = 0;
         b.FlatAppearance.MouseOverBackColor = AccentDark;
         return b;
@@ -60,7 +63,8 @@ public static class Theme
             BackColor = Card,
             ForeColor = Text,
             Font = FontMedium,
-            Cursor = Cursors.Hand
+            Cursor = Cursors.Hand,
+            Padding = new Padding(10, 2, 10, 2)
         };
         b.FlatAppearance.BorderColor = Border;
         b.FlatAppearance.BorderSize = 1;
@@ -176,7 +180,8 @@ public static class Theme
         g.ColumnHeadersDefaultCellStyle.Font = FontMediumBold;
         g.ColumnHeadersDefaultCellStyle.SelectionBackColor = GridHeader;
         g.ColumnHeadersDefaultCellStyle.Padding = new Padding(6, 8, 6, 8);
-        g.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+        g.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.EnableResizing;
+        g.ColumnHeadersHeight = 34;
         g.RowHeadersVisible = false;
         g.DefaultCellStyle.BackColor = Color.White;
         g.DefaultCellStyle.ForeColor = Text;
@@ -184,6 +189,7 @@ public static class Theme
         g.DefaultCellStyle.SelectionForeColor = Text;
         g.DefaultCellStyle.Font = FontBase;
         g.DefaultCellStyle.Padding = new Padding(6, 6, 6, 6);
+        g.RowTemplate.Height = 32;
         g.AlternatingRowsDefaultCellStyle.BackColor = GridAlt;
         g.GridColor = Border;
         g.CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal;
@@ -220,6 +226,21 @@ public static class Theme
             using var pen = new Pen(Border, 1);
             e.Graphics.DrawLine(pen, 0, p.Height - 1, p.Width, p.Height - 1);
         };
+        return p;
+    }
+
+    public static Panel SectionHeader(string title, string? subtitle = null)
+    {
+        var p = new Panel { Height = 66, Dock = DockStyle.Top, BackColor = Bg, Padding = new Padding(16, 10, 16, 8) };
+        var heading = Label(title, 16, true, Text);
+        heading.Location = new Point(16, 8);
+        p.Controls.Add(heading);
+        if (!string.IsNullOrWhiteSpace(subtitle))
+        {
+            var hint = Label(subtitle, 9, false, Muted);
+            hint.Location = new Point(17, 36);
+            p.Controls.Add(hint);
+        }
         return p;
     }
 }

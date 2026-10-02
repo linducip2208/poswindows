@@ -8,17 +8,27 @@ public class BackupService
     private readonly Db _db;
     private readonly SettingsService _settings;
     private readonly AuditService _audit;
-    private readonly string _backupDir;
+    private readonly string? _backupDirOverride;
 
     public BackupService(Db db, SettingsService settings, AuditService audit, string? backupDir = null)
     {
         _db = db;
         _settings = settings;
         _audit = audit;
-        _backupDir = backupDir ?? AppPaths.BackupDir;
+        _backupDirOverride = backupDir;
     }
 
-    public string BackupDir => _backupDir;
+    public string BackupDir
+    {
+        get
+        {
+            var configured = _backupDirOverride ?? _settings.BackupDirectory;
+            if (string.IsNullOrWhiteSpace(configured)) return AppPaths.BackupDir;
+            return Path.IsPathRooted(configured)
+                ? configured
+                : Path.GetFullPath(Path.Combine(AppPaths.Root, configured));
+        }
+    }
 
     /// <summary>
     /// Safe online backup using the SQLite Backup API (not a raw file copy),
@@ -26,11 +36,12 @@ public class BackupService
     /// </summary>
     public string CreateBackup(string reason, long userId = 0, string username = "")
     {
-        Directory.CreateDirectory(_backupDir);
+        var backupDir = BackupDir;
+        Directory.CreateDirectory(backupDir);
         // unique file name: multiple backups within the same second must not overwrite each other
-        var target = Path.Combine(_backupDir, $"POS-{DateTime.Now:yyyyMMdd-HHmmssfff}.db");
+        var target = Path.Combine(backupDir, $"POS-{DateTime.Now:yyyyMMdd-HHmmssfff}.db");
         while (File.Exists(target))
-            target = Path.Combine(_backupDir, $"POS-{DateTime.Now:yyyyMMdd-HHmmssfff}-{Guid.NewGuid().ToString("N")[..4]}.db");
+            target = Path.Combine(backupDir, $"POS-{DateTime.Now:yyyyMMdd-HHmmssfff}-{Guid.NewGuid().ToString("N")[..4]}.db");
 
         using (var source = _db.Open())
         {
@@ -61,7 +72,7 @@ public class BackupService
         try
         {
             var keep = Math.Max(3, _settings.BackupKeep);
-            var files = Directory.GetFiles(_backupDir, "POS-*.db")
+            var files = Directory.GetFiles(BackupDir, "POS-*.db")
                 .OrderByDescending(f => f)
                 .ToList();
             for (var i = keep; i < files.Count; i++)
@@ -82,6 +93,14 @@ public class BackupService
             throw new InvalidOperationException("File bukan database SQLite yang valid");
         if (System.Text.Encoding.ASCII.GetString(header) != "SQLite format 3\0")
             throw new InvalidOperationException("File bukan database SQLite yang valid");
+
+        using var check = new SqliteConnection("Data Source=" + path + ";Mode=ReadOnly;Pooling=False");
+        check.Open();
+        using var cmd = check.CreateCommand();
+        cmd.CommandText = @"SELECT COUNT(*) FROM sqlite_master
+            WHERE type='table' AND name IN ('database_version','products','sales','users')";
+        if (Convert.ToInt32(cmd.ExecuteScalar()) < 4)
+            throw new InvalidOperationException("Backup valid sebagai SQLite, tetapi schema KasirPro tidak lengkap");
     }
 
     /// <summary>
@@ -148,8 +167,8 @@ public class BackupService
 
     public List<(string FileName, long Size, DateTime Created)> ListBackups()
     {
-        if (!Directory.Exists(_backupDir)) return new();
-        return Directory.GetFiles(_backupDir, "POS-*.db")
+        if (!Directory.Exists(BackupDir)) return new();
+        return Directory.GetFiles(BackupDir, "POS-*.db")
             .Select(f => new FileInfo(f))
             .OrderByDescending(fi => fi.Name)
             .Select(fi => (fi.Name, fi.Length, fi.LastWriteTime))

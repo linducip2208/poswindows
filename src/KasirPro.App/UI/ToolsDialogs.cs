@@ -15,6 +15,7 @@ public class StoreSettingsDialog : Form
     private readonly TextBox _invoicePrefix = Theme.TextBox(80);
     private readonly CheckBox _autoBackup = new() { Text = "Backup otomatis saat tutup shift & keluar aplikasi", AutoSize = true, Font = Theme.FontBase };
     private readonly TextBox _backupKeep = Theme.TextBox(60);
+    private readonly TextBox _backupDirectory = Theme.TextBox(300);
     private readonly ComboBox _language = Theme.Combo(160);
     private readonly CheckBox _allowCredit = new() { Text = "Aktifkan piutang (credit) untuk pelanggan terdaftar", AutoSize = true, Font = Theme.FontBase };
     private readonly TextBox _updateSource = Theme.TextBox(300);
@@ -76,6 +77,16 @@ public class StoreSettingsDialog : Form
         var lKeep = Theme.Label("Simpan backup (file):", 9, true); lKeep.Location = new Point(20, y);
         _backupKeep.Location = new Point(180, y - 3); _backupKeep.Text = svc.BackupKeep.ToString();
         Controls.Add(lKeep); Controls.Add(_backupKeep); y += 30;
+        var lBackupDir = Theme.Label("Folder backup eksternal:", 9, true); lBackupDir.Location = new Point(20, y);
+        _backupDirectory.Location = new Point(180, y - 3); _backupDirectory.Text = svc.BackupDirectory;
+        var browseBackup = Theme.SecondaryButton("Pilih", 70, 28); browseBackup.Location = new Point(488, y - 4);
+        browseBackup.Click += (s, e) =>
+        {
+            using var dlg = new FolderBrowserDialog { Description = "Pilih lokasi backup SQLite di luar folder aplikasi" };
+            if (Directory.Exists(_backupDirectory.Text)) dlg.SelectedPath = _backupDirectory.Text;
+            if (dlg.ShowDialog(this) == DialogResult.OK) _backupDirectory.Text = dlg.SelectedPath;
+        };
+        Controls.Add(lBackupDir); Controls.Add(_backupDirectory); Controls.Add(browseBackup); y += 34;
 
         Check(_allowCredit); _allowCredit.Checked = svc.AllowCredit;
         Field("Folder update offline:", _updateSource); _updateSource.Text = svc.UpdateSource;
@@ -129,6 +140,7 @@ public class StoreSettingsDialog : Form
         svc.Set("invoice_prefix", string.IsNullOrWhiteSpace(_invoicePrefix.Text) ? "INV" : _invoicePrefix.Text.Trim());
         svc.Set("auto_backup", _autoBackup.Checked ? "1" : "0");
         if (int.TryParse(_backupKeep.Text, out var keep)) svc.Set("backup_keep", keep.ToString());
+        svc.Set("backup_dir", _backupDirectory.Text.Trim());
         svc.Set("allow_credit", _allowCredit.Checked ? "1" : "0");
         svc.Set("update_source", _updateSource.Text.Trim());
         svc.Set("tax_enabled", _taxEnabled.Checked ? "1" : "0");

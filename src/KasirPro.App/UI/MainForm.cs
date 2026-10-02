@@ -30,7 +30,8 @@ public class MainForm : Form
     public MainForm()
     {
         Text = "KasirPro - POS Retail";
-        MinimumSize = new Size(1100, 680);
+        // Support laptop layouts; PosPage adapts its search/cart controls below 980px.
+        MinimumSize = new Size(960, 640);
         Size = new Size(1366, 768);
         StartPosition = FormStartPosition.CenterScreen;
         BackColor = Theme.Bg;
@@ -41,6 +42,8 @@ public class MainForm : Form
         _menu.Dock = DockStyle.Top;
         _menu.Renderer = new ToolStripProfessionalRenderer(new MenuColors());
         _menu.Padding = new Padding(8, 4, 0, 2);
+
+        var quickBar = BuildQuickBar();
 
         _status = new StatusStrip { BackColor = Theme.Card, SizingGrip = false };
         _lblUser = new ToolStripStatusLabel($"{Strings.T("status_user")}: {Program.Session!.FullName}") { Font = Theme.FontBase };
@@ -53,6 +56,7 @@ public class MainForm : Form
 
         Controls.Add(_content);
         Controls.Add(_status);
+        Controls.Add(quickBar);
         Controls.Add(_menu);
         MainMenuStrip = _menu;
 
@@ -138,6 +142,7 @@ public class MainForm : Form
         transaction.DropDownItems.Add(new ToolStripSeparator());
         transaction.DropDownItems.Add(Item(Strings.T("menu_cash_in"), () => new CashMovementDialog(isCashIn: true).ShowDialog()));
         transaction.DropDownItems.Add(Item(Strings.T("menu_cash_out"), () => new CashMovementDialog(isCashIn: false).ShowDialog()));
+        transaction.DropDownItems.Add(Item("Pengeluaran Operasional", () => new ExpensesDialog().ShowDialog(this)));
         transaction.DropDownItems.Add(new ToolStripSeparator());
         transaction.DropDownItems.Add(Item(Strings.T("menu_open_shift"), () => RunDialog(new OpenShiftDialog())));
         transaction.DropDownItems.Add(Item(Strings.T("menu_close_shift"), () => RunDialog(new CloseShiftDialog())));
@@ -173,6 +178,7 @@ public class MainForm : Form
         reports.DropDownItems.Add(Item("Monthly Sales", () => new ReportViewerForm(ReportKind.Monthly).ShowDialog()));
         reports.DropDownItems.Add(Item("Purchase Report", () => new ReportViewerForm(ReportKind.Purchase).ShowDialog()));
         reports.DropDownItems.Add(Item("Profit Report", () => new ReportViewerForm(ReportKind.Profit).ShowDialog()));
+        reports.DropDownItems.Add(Item("Laporan Pengeluaran", () => new ReportViewerForm(ReportKind.Expenses).ShowDialog()));
         reports.DropDownItems.Add(Item("Product Sales Report", () => new ReportViewerForm(ReportKind.ProductSales).ShowDialog()));
         reports.DropDownItems.Add(Item("Sales by Hour", () => new ReportViewerForm(ReportKind.Hourly).ShowDialog()));
         reports.DropDownItems.Add(Item("Sales by Payment Method", () => new ReportViewerForm(ReportKind.PaymentMethod).ShowDialog()));
@@ -203,6 +209,9 @@ public class MainForm : Form
         tools.DropDownItems.Add(Item(Strings.T("menu_printer_setup"), () => new PrinterSetupDialog().ShowDialog()));
         tools.DropDownItems.Add(Item("Hardware Test Center", () => new HardwareTestCenterDialog().ShowDialog()));
         tools.DropDownItems.Add(Item("Barcode & Labels", () => new BarcodeManagerDialog().ShowDialog()));
+        tools.DropDownItems.Add(Item("Kesehatan Database", () => new DatabaseHealthDialog().ShowDialog(this)));
+        if (Program.Session.IsAdmin)
+            tools.DropDownItems.Add(Item("Penutupan Periode", () => new PeriodCloseDialog().ShowDialog(this)));
         tools.DropDownItems.Add(new ToolStripSeparator());
         if (Program.Session.Has("BACKUP.CREATE"))
             tools.DropDownItems.Add(Item(Strings.T("menu_backup"), () => RunBackup()));
@@ -223,6 +232,34 @@ public class MainForm : Form
         data.DropDownItems.AddRange(new ToolStripItem[] { transaction, product, promotion, inventory, reports, tools });
         menu.Items.Add(data);
         return menu;
+    }
+
+    private ToolStrip BuildQuickBar()
+    {
+        var bar = new ToolStrip
+        {
+            Dock = DockStyle.Top,
+            GripStyle = ToolStripGripStyle.Hidden,
+            BackColor = Theme.Card,
+            Padding = new Padding(8, 4, 8, 4),
+            Height = 42,
+            Renderer = new ToolStripProfessionalRenderer(new MenuColors())
+        };
+        var sale = new ToolStripButton("Transaksi Baru  F2") { Font = Theme.FontMediumBold, ForeColor = Theme.Accent, DisplayStyle = ToolStripItemDisplayStyle.Text };
+        sale.Click += (s, e) => OpenPos();
+        var dashboard = new ToolStripButton("Ringkasan") { Font = Theme.FontBase, DisplayStyle = ToolStripItemDisplayStyle.Text };
+        dashboard.Click += (s, e) => OpenPage<DashboardPage>("dashboard");
+        var refresh = new ToolStripButton("Muat Ulang  F5") { Font = Theme.FontBase, DisplayStyle = ToolStripItemDisplayStyle.Text };
+        refresh.Click += (s, e) => RefreshActivePage();
+        bar.Items.AddRange(new ToolStripItem[] { sale, new ToolStripSeparator(), dashboard, refresh });
+        return bar;
+    }
+
+    private void RefreshActivePage()
+    {
+        foreach (Control c in _content.Controls)
+            if (c.Visible) (c as IPage)?.RefreshData();
+        UpdateStatusBar();
     }
 
     private void RunUpdateCheck()

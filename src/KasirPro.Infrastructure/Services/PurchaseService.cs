@@ -7,8 +7,9 @@ public class PurchaseService
 {
     private readonly Db _db;
     private readonly AuditService _audit;
+    private readonly PeriodCloseService _periods;
 
-    public PurchaseService(Db db, AuditService audit) { _db = db; _audit = audit; }
+    public PurchaseService(Db db, AuditService audit, PeriodCloseService periods) { _db = db; _audit = audit; _periods = periods; }
 
     public string NextPurchaseNo()
     {
@@ -24,6 +25,7 @@ public class PurchaseService
     public Purchase CreatePurchase(Purchase po, long userId, string username, bool updateCost = true)
     {
         if (po.Items.Count == 0) throw new InvalidOperationException("Tambahkan minimal 1 item");
+        _periods.EnsureOpen(DateTime.Now);
         var now = DbEx.Iso(DateTime.Now);
         po.PurchaseDate = DateTime.Now;
 
@@ -137,6 +139,7 @@ public class PurchaseService
     public PurchaseReturn CreateReturn(long purchaseId, List<(long PurchaseItemId, decimal Qty)> returnItems,
         string reason, long userId, string username)
     {
+        _periods.EnsureOpen(DateTime.Now);
         if (returnItems.Count == 0) throw new InvalidOperationException("Pilih item yang diretur");
         var now = DbEx.Iso(DateTime.Now);
         var no = InventoryService.NextNo(_db, "PRN", "purchase_returns", "return_no");
@@ -282,6 +285,7 @@ public class PurchaseService
     public long Receive(long purchaseId, List<(long ProductId, decimal OrderedQty, decimal ReceivedQty)> lines,
         string notes, long userId, string username, bool updateCost = false)
     {
+        _periods.EnsureOpen(DateTime.Now);
         var now = DbEx.Iso(DateTime.Now);
         return _db.Transaction(c =>
         {

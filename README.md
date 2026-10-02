@@ -51,6 +51,10 @@ Portable - seluruh data berada di folder aplikasi, cukup dipindahkan ke flashdis
 **Offline Infrastruktur**
 - SQLite WAL + foreign_keys + busy retry + light maintenance + quick_check
 - Backup via SQLite Backup API (bukan copy file mentah), auto + retention
+- Database Health Center: journal mode, integrity, schema version, ukuran WAL, dan ruang disk
+- Folder backup eksternal yang dapat dipilih, validasi schema saat restore
+- Pengeluaran operasional terhubung ke cash shift dan laporan laba
+- Penutupan periode YYYY-MM untuk mencegah transaksi historis berubah
 - Update offline via USB/share: manifest + SHA-256 + **ECDSA signature**
 - Lisensi offline ECDSA P-256 + Master Keygen terpisah
 - Dwi-bahasa: Indonesia / English
@@ -111,7 +115,18 @@ KasirPro.exe --diag-license           # fingerprint public key + status lisensi
 File: `<folder app>\Data\pos.db` (relatif, portable).
 `foreign_keys=ON`, `journal_mode=WAL`, `synchronous=NORMAL`, busy_timeout 10s,
 retry SQLITE_BUSY 3x, light maintenance (checkpoint+optimize+quick_check).
-Migrasi versioned v1-v5 (idempotent, transactional).
+Migrasi versioned v1-v6 (idempotent, transactional).
+
+### Batas penggunaan SQLite
+
+KasirPro menggunakan satu database SQLite lokal per perangkat. Jangan menaruh
+`Data/pos.db` di folder network share untuk dipakai langsung oleh beberapa
+komputer, karena SQLite bukan database multi-kasir melalui SMB. Untuk beberapa
+terminal diperlukan satu host lokal/API atau mekanisme sinkronisasi khusus.
+
+Folder backup dapat diarahkan ke USB atau drive lain melalui Store Settings.
+Backup memakai SQLite Backup API dan dapat diperiksa dari menu Tools >
+Kesehatan Database.
 
 ## Backup / Restore
 
@@ -249,7 +264,7 @@ Logs/                  <- kasirpro-yyyy-MM-dd.log
 
 ## How to Build
 
-Butuh .NET SDK 6 (LTS). Dari root repo:
+Project ini membutuhkan .NET SDK 10.0.101. Dari root repo:
 
 ```
 dotnet restore
@@ -260,7 +275,7 @@ dotnet test tests/KasirPro.Tests
 ## How to Run
 
 ```
-cd src/KasirPro.App/bin/Release/net6.0-windows
+cd src/KasirPro.App/bin/Release/net10.0-windows
 KasirPro.exe
 ```
 
@@ -389,7 +404,7 @@ Detail keamanan: lihat SECURITY-LICENSING.md.
 Hanya developer (sekali):
 
 ```
-cd tools/KasirPro.Keygen/bin/Debug/net6.0-windows
+cd tools/KasirPro.Keygen/bin/Debug/net10.0-windows
 KasirPro.Keygen.exe --init <passphrase-kuat>
 ```
 

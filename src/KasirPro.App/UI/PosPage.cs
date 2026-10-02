@@ -72,7 +72,7 @@ public class PosPage : Panel, IPage
         rightPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 196));
 
         var cartHeader = new Panel { Dock = DockStyle.Top, BackColor = Theme.Card };
-        var cartTitle = Theme.Label("Shopping Cart", 11, true);
+        var cartTitle = Theme.Label("Keranjang", 11, true);
         cartTitle.Location = new Point(2, 9);
         var custLabel = Theme.Label("Pelanggan:", 9);
         custLabel.Location = new Point(160, 12);
@@ -150,20 +150,20 @@ public class PosPage : Panel, IPage
         dLabel.Location = new Point(78, 64);
         _lblTax = TotalLine("PPN:  0", 84);
         _lblTax.ForeColor = Theme.Muted;
-        var clearBtn = Theme.SecondaryButton("Clear Cart", 100, 28);
+        var clearBtn = Theme.SecondaryButton("Kosongkan", 100, 30);
         clearBtn.Location = new Point(150, 96);
         clearBtn.Click += (s, e) => { _cart.Clear(); RefreshCart(); };
-        var holdBtn = Theme.SecondaryButton("HOLD (Parkir)", 120, 28);
+        var holdBtn = Theme.SecondaryButton("Parkir", 96, 30);
         holdBtn.Location = new Point(258, 96);
         holdBtn.Click += (s, e) => HoldCart();
-        var recallBtn = Theme.SecondaryButton("Panggil (Recall)", 130, 28);
+        var recallBtn = Theme.SecondaryButton("Panggil", 96, 30);
         recallBtn.Location = new Point(386, 96);
         recallBtn.Click += (s, e) => RecallCart();
         totalsPanel.Controls.AddRange(new Control[] { _lblSubtotal, _lblDiscount, _lblTax, _lblTotal, _discount, dLabel, clearBtn, holdBtn, recallBtn });
 
         _pay = new Button
         {
-            Text = "PAY (F9)",
+            Text = "LANJUT BAYAR  (F9)",
             Dock = DockStyle.Bottom,
             Height = 64,
             FlatStyle = FlatStyle.Flat,
@@ -198,6 +198,33 @@ public class PosPage : Panel, IPage
 
         layout.Controls.Add(left, 0, 0);
         layout.Controls.Add(right, 1, 0);
+        layout.Resize += (s, e) =>
+        {
+            var narrow = layout.ClientSize.Width < 980;
+            _barcode.Width = narrow ? 190 : 260;
+            _search.Left = narrow ? 202 : 272;
+            _search.Width = narrow ? 180 : 220;
+            catLabel.Visible = !narrow;
+            _category.Visible = !narrow;
+            if (narrow)
+            {
+                custLabel.Left = 122;
+                _customer.Left = 190;
+                _customer.Width = 150;
+                recallBtn.Left = Math.Max(270, totalsPanel.ClientSize.Width - recallBtn.Width - 4);
+                holdBtn.Left = Math.Max(166, recallBtn.Left - holdBtn.Width - 6);
+                clearBtn.Left = Math.Max(58, holdBtn.Left - clearBtn.Width - 6);
+            }
+            else
+            {
+                custLabel.Left = 160;
+                _customer.Left = 232;
+                _customer.Width = 200;
+                clearBtn.Left = 150;
+                holdBtn.Left = 258;
+                recallBtn.Left = 386;
+            }
+        };
         Controls.Add(layout);
     }
 

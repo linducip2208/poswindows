@@ -24,11 +24,11 @@ public class DatabaseTests : IDisposable
         var migrator = new Migrator(_db);
         Assert.Equal(0, migrator.CurrentVersion);
         migrator.Migrate();
-        Assert.Equal(5, migrator.CurrentVersion);
+        Assert.Equal(6, migrator.CurrentVersion);
 
         // second run: no-op
         migrator.Migrate();
-        Assert.Equal(5, migrator.CurrentVersion);
+        Assert.Equal(6, migrator.CurrentVersion);
 
         var tables = migrator.TableNames();
         string[] expected =
@@ -45,6 +45,7 @@ public class DatabaseTests : IDisposable
             "store_credit_ledger", "loyalty_ledger", "product_variants",
             "inventory_batches", "product_serials", "promotions", "promotion_usage",
             "purchase_receipts", "purchase_receipt_items"
+            , "expenses", "period_closures"
         };
         foreach (var t in expected)
             Assert.Contains(t, tables);
@@ -94,6 +95,37 @@ public class DatabaseTests : IDisposable
             cmd.CommandText = "PRAGMA foreign_keys";
             Assert.Equal(1L, Convert.ToInt64(cmd.ExecuteScalar()));
         });
+    }
+
+    [Fact]
+    public void SQLite_UsesWal_AndHealthChecks()
+    {
+        new Migrator(_db).Migrate();
+        var mode = _db.With(c => c.ExecuteScalar<string>("PRAGMA journal_mode"));
+        Assert.Equal("wal", mode, ignoreCase: true);
+        var health = new DatabaseHealthService(_db, new BackupService(_db,
+            new SettingsService(_db, new AuditService(_db)), new AuditService(_db), Path.Combine(_dir, "Backup"))).Read();
+        Assert.Equal("ok", health.Integrity);
+        Assert.Equal("ok", health.QuickCheck);
+    }
+
+    [Fact]
+    public void Expense_UpdatesCash_AndClosedPeriodBlocksNewEntries()
+    {
+        new Migrator(_db).Migrate();
+        var services = new AppServices(_db, Path.Combine(_dir, "Backup"));
+        var admin = services.Users.CreateAdmin("expense-admin", "admin123", "Expense Admin");
+        var session = services.Cash.OpenSession(admin.Id, admin.Username, 100000)!;
+
+        services.Expenses.Add(DateTime.Today, "Listrik", "Token listrik", 25000,
+            "Cash", admin.Id, admin.Username);
+        var cashOut = _db.With(c => c.ExecuteScalar<long>(
+            "SELECT cash_out FROM cash_sessions WHERE id=@id", new { id = session.Id }));
+        Assert.Equal(2500000, cashOut);
+
+        services.Periods.Close(DateTime.Today.ToString("yyyy-MM"), admin.Id, admin.Username);
+        Assert.Throws<InvalidOperationException>(() => services.Expenses.Add(
+            DateTime.Today, "Lain-lain", "Tidak boleh", 1000, "Cash", admin.Id, admin.Username));
     }
 
     public void Dispose()

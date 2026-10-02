@@ -46,7 +46,10 @@ public class ReportService
         _db.With(c => c.Query<ProfitRow>(@$"SELECT date(s.sale_date) AS Date,
             CAST(ROUND(SUM(s.total)/100.0,2) AS REAL) AS Revenue,
             CAST(ROUND(SUM(s.cost_total)/100.0,2) AS REAL) AS Cost,
-            CAST(ROUND((SUM(s.total)-SUM(s.cost_total))/100.0,2) AS REAL) AS Profit
+            CAST(ROUND(COALESCE((SELECT SUM(e.amount) FROM expenses e
+                WHERE e.status='POSTED' AND date(e.expense_date)=date(s.sale_date)),0)/100.0,2) AS REAL) AS Expenses,
+            CAST(ROUND((SUM(s.total)-SUM(s.cost_total)-COALESCE((SELECT SUM(e.amount) FROM expenses e
+                WHERE e.status='POSTED' AND date(e.expense_date)=date(s.sale_date)),0))/100.0,2) AS REAL) AS Profit
             FROM sales s
             WHERE s.status='COMPLETED' AND s.sale_date >= @f AND s.sale_date <= @t2
             GROUP BY date(s.sale_date) ORDER BY date(s.sale_date)",
@@ -139,6 +142,16 @@ public class ReportService
             GROUP BY s.user_id ORDER BY Total DESC",
             new { f = DbEx.Iso(from.Date), t2 = DbEx.Iso(to.Date.AddDays(1).AddSeconds(-1)) }).ToList());
 
+    public List<ExpenseReportRow> Expenses(DateTime from, DateTime to) =>
+        _db.With(c => c.Query<ExpenseReportRow>(@"SELECT e.expense_date AS Date,
+            e.category AS Category, e.description AS Description,
+            CAST(ROUND(e.amount/100.0,2) AS REAL) AS Amount,
+            e.payment_method AS PaymentMethod, COALESCE(u.username,'') AS User
+            FROM expenses e LEFT JOIN users u ON u.id=e.user_id
+            WHERE e.status='POSTED' AND e.expense_date >= @f AND e.expense_date <= @t2
+            ORDER BY e.expense_date, e.id",
+            new { f = DbEx.Iso(from.Date), t2 = DbEx.Iso(to.Date.AddDays(1).AddSeconds(-1)) }).ToList());
+
     // ===== extended reports (v2.1) =====
 
     /// <summary>Receivable aging buckets from outstanding sale_debts.</summary>
@@ -223,7 +236,10 @@ public class ReportService
                 new { f = fromToday, t2 = toToday });
             s.SalesToday = todayAgg.Total;
             s.TransactionsToday = todayAgg.Count;
-            s.ProfitToday = todayAgg.Profit;
+            s.ExpensesToday = c.ExecuteScalar<decimal>(@"SELECT COALESCE(CAST(ROUND(SUM(amount)/100.0,2) AS REAL),0)
+                FROM expenses WHERE status='POSTED' AND expense_date >= @f AND expense_date <= @t2",
+                new { f = fromToday, t2 = toToday });
+            s.ProfitToday = todayAgg.Profit - s.ExpensesToday;
 
             s.LowStockCount = c.ExecuteScalar<int>(
                 "SELECT COUNT(*) FROM products WHERE is_active=1 AND stock <= min_stock");

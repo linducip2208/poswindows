@@ -28,6 +28,18 @@ public class DashboardPage : Panel, IPage
         BackColor = Theme.Bg;
         Padding = new Padding(14);
 
+        var header = new Panel { Dock = DockStyle.Top, Height = 58, BackColor = Theme.Bg };
+        var title = Theme.Label("Ringkasan toko", 17, true, Theme.Text);
+        title.Location = new Point(0, 4);
+        var subtitle = Theme.Label("Pantau penjualan, kas, dan stok dalam satu tampilan.", 9, false, Theme.Muted);
+        subtitle.Location = new Point(1, 31);
+        var refresh = Theme.SecondaryButton("Muat ulang", 104, 32);
+        refresh.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        refresh.Location = new Point(Width - 118, 10);
+        refresh.Click += (s, e) => RefreshData();
+        header.Resize += (s, e) => refresh.Left = header.ClientSize.Width - refresh.Width;
+        header.Controls.AddRange(new Control[] { title, subtitle, refresh });
+
         var cards = new TableLayoutPanel { Dock = DockStyle.Top, Height = 96, ColumnCount = 4, RowCount = 1, BackColor = Theme.Bg };
         for (var i = 0; i < 4; i++) cards.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25));
         var cardSales = SummaryCard(Strings.T("dash_sales_today"), _cardSales, Theme.Accent);
@@ -108,6 +120,7 @@ public class DashboardPage : Panel, IPage
         Controls.Add(body);
         Controls.Add(minis);
         Controls.Add(cards);
+        Controls.Add(header);
     }
 
     private static Label ValueLabel() =>

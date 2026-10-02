@@ -8,8 +8,9 @@ public class InventoryService
 {
     private readonly Db _db;
     private readonly AuditService _audit;
+    private readonly PeriodCloseService? _periods;
 
-    public InventoryService(Db db, AuditService audit) { _db = db; _audit = audit; }
+    public InventoryService(Db db, AuditService audit, PeriodCloseService? periods = null) { _db = db; _audit = audit; _periods = periods; }
 
     /// <summary>
     /// Applies a stock movement + updates products.stock atomically.
@@ -37,6 +38,7 @@ public class InventoryService
 
     public void StockIn(long productId, decimal qty, string notes, long userId, string username, string refType = StockRef.ManualIn)
     {
+        _periods?.EnsureOpen(DateTime.Now);
         if (qty <= 0) throw new InvalidOperationException("Jumlah harus lebih dari 0");
         var id = _db.Transaction(c => NextRefId(c));
         ApplyInTx(productId, refType, id, StockDirection.In, qty, notes, userId, username);
@@ -45,6 +47,7 @@ public class InventoryService
 
     public void StockOut(long productId, decimal qty, string notes, long userId, string username, string refType = StockRef.ManualOut)
     {
+        _periods?.EnsureOpen(DateTime.Now);
         if (qty <= 0) throw new InvalidOperationException("Jumlah harus lebih dari 0");
         var id = _db.Transaction(c => NextRefId(c));
         ApplyInTx(productId, refType, id, StockDirection.Out, qty, notes, userId, username);
@@ -54,6 +57,7 @@ public class InventoryService
     /// <summary>Set stock to an exact value (difference becomes an ADJUSTMENT movement).</summary>
     public void Adjust(long productId, decimal newStock, string notes, long userId, string username)
     {
+        _periods?.EnsureOpen(DateTime.Now);
         _db.Transaction(c =>
         {
             var current = c.ExecuteScalar<decimal>("SELECT stock FROM products WHERE id=@id", new { id = productId });
@@ -218,6 +222,7 @@ public class InventoryService
     /// <summary>Posts the opname: applies differences as OPNAME movements with audit trail.</summary>
     public void PostOpname(long opnameId, long userId, string username)
     {
+        _periods?.EnsureOpen(DateTime.Now);
         _db.Transaction(c =>
         {
             var status = c.ExecuteScalar<string>("SELECT status FROM stock_opnames WHERE id=@id", new { id = opnameId });

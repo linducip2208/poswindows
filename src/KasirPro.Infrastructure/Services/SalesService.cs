@@ -11,9 +11,10 @@ public class SalesService
     private readonly CashService _cash;
     private readonly SettingsService _settings;
     private readonly LoyaltyService _loyalty;
+    private readonly PeriodCloseService _periods;
 
-    public SalesService(Db db, AuditService audit, CashService cash, SettingsService settings, LoyaltyService loyalty)
-    { _db = db; _audit = audit; _cash = cash; _settings = settings; _loyalty = loyalty; }
+    public SalesService(Db db, AuditService audit, CashService cash, SettingsService settings, LoyaltyService loyalty, PeriodCloseService periods)
+    { _db = db; _audit = audit; _cash = cash; _settings = settings; _loyalty = loyalty; _periods = periods; }
 
     public string NextInvoiceNo(long? saleId = null)
     {
@@ -33,6 +34,7 @@ public class SalesService
     /// </summary>
     public Sale CompleteSale(Sale sale)
     {
+        _periods.EnsureOpen(DateTime.Now);
         var paid = Money.Round(sale.Payments.Sum(p => p.Amount));
         sale.Total = Money.Round(sale.Total);
         var shortfall = Money.Round(sale.Total - paid);
@@ -227,6 +229,7 @@ public class SalesService
     /// <summary>Voids a completed sale: reverses stock (IN) with SALE_VOID movements.</summary>
     public void VoidSale(long saleId, string reason, long userId, string username)
     {
+        _periods.EnsureOpen(DateTime.Now);
         _db.Transaction(c =>
         {
             var status = c.ExecuteScalar<string>("SELECT status FROM sales WHERE id=@id", new { id = saleId });
@@ -255,6 +258,7 @@ public class SalesService
     public SaleReturn CreateReturn(long saleId, List<(long SaleItemId, decimal Qty)> returnItems,
         string reason, long userId, string username, string refundMode = "NONE", long cashSessionId = 0)
     {
+        _periods.EnsureOpen(DateTime.Now);
         if (returnItems.Count == 0) throw new InvalidOperationException("Pilih item yang diretur");
         if (refundMode == "CASH" && cashSessionId <= 0)
             throw new InvalidOperationException("Cash refund butuh shift terbuka");

@@ -19,18 +19,30 @@ public class LoginForm : Form
         MaximizeBox = false;
         MinimizeBox = false;
         StartPosition = FormStartPosition.CenterScreen;
-        ClientSize = new Size(420, 330);
+        ClientSize = new Size(760, 470);
         BackColor = Theme.Bg;
 
+        var hero = new Panel { Dock = DockStyle.Left, Width = 300, BackColor = Theme.Accent, Padding = new Padding(32) };
+        var heroTitle = Theme.Label("KasirPro", 28, true, Color.White);
+        heroTitle.Location = new Point(32, 34);
+        var heroSub = Theme.Label("POS retail yang cepat, aman, dan tetap berjalan tanpa internet.", 12, false, Color.FromArgb(219, 234, 254));
+        heroSub.MaximumSize = new Size(230, 80);
+        heroSub.Location = new Point(32, 88);
+        var benefits = Theme.Label("SCAN BARCODE CEPAT\n\nSHIFT & KAS TERKONTROL\n\nLAPORAN SIAP CETAK", 10, true, Color.White);
+        benefits.Location = new Point(32, 220);
+        var heroFoot = Theme.Label("Offline-first · Data tersimpan lokal", 9, false, Color.FromArgb(191, 219, 254));
+        heroFoot.Location = new Point(32, 410);
+        hero.Controls.AddRange(new Control[] { heroTitle, heroSub, benefits, heroFoot });
+
         var brand = Theme.Label(Strings.T("login_title"), 26, true, Theme.Accent);
-        brand.Location = new Point(40, 22);
+        brand.Location = new Point(370, 38);
         var brandSub = Theme.Label(Strings.T("login_subtitle"), 10, false, Theme.Muted);
-        brandSub.Location = new Point(42, 62);
+        brandSub.Location = new Point(372, 78);
 
         var userLabel = Theme.Label(Strings.T("login_user"), 9, true);
-        userLabel.Location = new Point(40, 112);
+        userLabel.Location = new Point(370, 128);
         _user = Theme.Combo(340);
-        _user.Location = new Point(40, 134);
+        _user.Location = new Point(370, 150);
         foreach (var u in Program.Services.Users.GetAll().Where(x => x.IsActive))
             _user.Items.Add(u.Username);
         if (_user.Items.Count == 0)
@@ -43,20 +55,22 @@ public class LoginForm : Form
         var lastUser = UiHelpers.Run(() => Program.Services.Settings.Get("last_user", ""));
         var idx = _user.Items.IndexOf(lastUser);
         _user.SelectedIndex = idx >= 0 ? idx : 0;
-        _password.Focus();
-
         var passLabel = Theme.Label(Strings.T("login_password"), 9, true);
-        passLabel.Location = new Point(40, 176);
+        passLabel.Location = new Point(370, 192);
         _password = Theme.TextBox(340);
-        _password.Location = new Point(40, 198);
+        _password.Location = new Point(370, 214);
         _password.UseSystemPasswordChar = true;
 
         _login = Theme.PrimaryButton(Strings.T("login_button"), 340, 40);
-        _login.Location = new Point(40, 248);
+        _login.Location = new Point(370, 272);
         _login.Click += OnLogin;
 
-        Controls.AddRange(new Control[] { brand, brandSub, userLabel, _user, passLabel, _password, _login });
+        var hint = Theme.Label("Gunakan akun kasir yang sudah dibuat pada setup awal.", 9, false, Theme.Muted);
+        hint.Location = new Point(372, 326);
+        Controls.Add(hero);
+        Controls.AddRange(new Control[] { brand, brandSub, userLabel, _user, passLabel, _password, _login, hint });
         AcceptButton = _login;
+        _password.Focus();
     }
 
     private void OnLogin(object? sender, EventArgs e)
