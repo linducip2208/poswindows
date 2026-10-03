@@ -13,7 +13,7 @@ Fully portable — all data lives inside the application folder; just copy it to
 shops, electronics stores, cosmetics, frozen food, small-to-medium building supply stores,
 and general retail.
 
-**Core character:** native Windows desktop · fast barcode scanning · keyboard & touchscreen
+**Core character:** native Windows desktop · fast barcode scanning · keyboard
 friendly · POS-hardware friendly · easy to back up · crash-safe database.
 
 ---
@@ -43,8 +43,8 @@ friendly · POS-hardware friendly · easy to back up · crash-safe database.
   New Sale buttons
 - **Printer fallback** — sale is always saved even if the printer fails (Retry / Skip)
 - **Cash drawer kick** — ESC/POS pulse via Windows spooler, permission-protected
-- **Keyboard shortcuts** — F2 barcode focus, F5 refresh, F9 payment, F11 fullscreen,
-  ESC cancel; touch mode with larger controls; auto-logout on idle
+- **Keyboard shortcuts** — F1 help, F2 barcode focus, F5 refresh, F9 payment, F11 fullscreen,
+  ESC cancel; auto-logout on idle
 
 ### 🔐 Security (RBAC)
 - **4 roles** — Owner / Admin / Supervisor / Cashier with **35+ granular permissions**

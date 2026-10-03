@@ -223,6 +223,7 @@ public class MainForm : Form
             tools.DropDownItems.Add(Item(Strings.T("menu_check_update"), () => RunUpdateCheck()));
         if (Program.Session.Has("LICENSE.VIEW"))
             tools.DropDownItems.Add(Item(Strings.T("menu_license_info"), () => new LicenseInfoDialog().ShowDialog()));
+        tools.DropDownItems.Add(Item("Bantuan Shortcut (F1)", () => new HelpDialog().ShowDialog(this)));
         tools.DropDownItems.Add(Item(Strings.T("menu_about"), () => new AboutDialog().ShowDialog()));
 
         // promotions (Data > Promotion)
@@ -251,7 +252,9 @@ public class MainForm : Form
         dashboard.Click += (s, e) => OpenPage<DashboardPage>("dashboard");
         var refresh = new ToolStripButton("Muat Ulang  F5") { Font = Theme.FontBase, DisplayStyle = ToolStripItemDisplayStyle.Text };
         refresh.Click += (s, e) => RefreshActivePage();
-        bar.Items.AddRange(new ToolStripItem[] { sale, new ToolStripSeparator(), dashboard, refresh });
+        var help = new ToolStripButton("Bantuan  F1") { Font = Theme.FontBase, DisplayStyle = ToolStripItemDisplayStyle.Text };
+        help.Click += (s, e) => new HelpDialog().ShowDialog(this);
+        bar.Items.AddRange(new ToolStripItem[] { sale, new ToolStripSeparator(), dashboard, refresh, new ToolStripSeparator(), help });
         return bar;
     }
 

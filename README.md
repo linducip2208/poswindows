@@ -20,7 +20,7 @@ Portable - seluruh data berada di folder aplikasi, cukup dipindahkan ke flashdis
 - Harga multi-level (Retail/Member/Wholesale1-3/Reseller/Distributor) + qty break
 - Harga grosir per produk, barcode timbangan (prefix EAN-13 + berat)
 - Payment success dialog, printer fallback, cash drawer kick (ESC/POS)
-- F2-F11 keyboard shortcuts, touch mode, auto-logout
+- F2-F11 keyboard shortcuts, auto-logout
 
 **Keamanan (RBAC)**
 - Role Owner/Admin/Supervisor/Cashier dengan 35+ permission granular

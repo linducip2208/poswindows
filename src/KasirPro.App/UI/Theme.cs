@@ -20,6 +20,9 @@ public static class Theme
     public static Color Danger = Color.FromArgb(220, 38, 38);
     public static Color Success = Color.FromArgb(22, 163, 74);
     public static Color Warning = Color.FromArgb(217, 119, 6);
+    // Text-safe variants (WCAG AA >= 4.5:1 on white) for small/body text.
+    public static Color SuccessText = Color.FromArgb(21, 128, 61);
+    public static Color WarningText = Color.FromArgb(180, 83, 9);
     public static Color GridHeader = Color.FromArgb(241, 245, 249);
     public static Color GridAlt = Color.FromArgb(248, 250, 252);
     public static Color SurfaceRaised = Color.FromArgb(255, 255, 255);
@@ -91,7 +94,7 @@ public static class Theme
         {
             Text = text, Width = w, Height = h,
             FlatStyle = FlatStyle.Flat,
-            BackColor = Warning, ForeColor = Color.White,
+            BackColor = WarningText, ForeColor = Color.White,
             Font = FontMediumBold, Cursor = Cursors.Hand
         };
         b.FlatAppearance.BorderSize = 0;

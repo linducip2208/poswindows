@@ -90,7 +90,7 @@ public class DebtsPage : Panel, IPage
             if (d.Status != "SETTLED" && d.DueDate.HasValue && d.DueDate.Value < DateTime.Now)
                 _grid.Rows[idx].Cells["due"].Style.ForeColor = Theme.Danger;
             if (d.Status == "SETTLED")
-                _grid.Rows[idx].Cells["status"].Style.ForeColor = Theme.Success;
+                _grid.Rows[idx].Cells["status"].Style.ForeColor = Theme.SuccessText;
         }
         _summary.Text = $"Total sisa piutang (halaman): {Money.Format(totalRemaining)}";
         _paging.UpdateInfo(result.Page, result.TotalPages, result.TotalItems);

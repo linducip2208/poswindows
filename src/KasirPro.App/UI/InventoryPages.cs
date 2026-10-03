@@ -147,7 +147,7 @@ public class StockMovementPage : Panel, IPage
                 $"{m.ReferenceType}#{m.ReferenceId}", m.Direction, m.Qty.ToString("0.##"),
                 m.StockAfter.ToString("0.##"), m.User, m.Notes);
             var cell = _grid.Rows[idx].Cells["dir"];
-            if (m.Direction == "IN") { cell.Style.ForeColor = Theme.Success; cell.Style.Font = Theme.FontMediumBold; }
+            if (m.Direction == "IN") { cell.Style.ForeColor = Theme.SuccessText; cell.Style.Font = Theme.FontMediumBold; }
             else { cell.Style.ForeColor = Theme.Danger; cell.Style.Font = Theme.FontMediumBold; }
         }
         _paging.UpdateInfo(result.Page, result.TotalPages, result.TotalItems);

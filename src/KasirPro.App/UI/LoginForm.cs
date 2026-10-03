@@ -70,7 +70,7 @@ public class LoginForm : Form
         Controls.Add(hero);
         Controls.AddRange(new Control[] { brand, brandSub, userLabel, _user, passLabel, _password, _login, hint });
         AcceptButton = _login;
-        _password.Focus();
+        Shown += (s, e) => _password.Focus();
     }
 
     private void OnLogin(object? sender, EventArgs e)
